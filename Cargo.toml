@@ -1,0 +1,8 @@
+[package]
+name = "crosswords-rs"
+version = "0.0.1"
+authors = ["Andreas Fackler <AndreasFackler@gmx.de>"]
+
+[dependencies]
+
+rand = "0.3.7"
