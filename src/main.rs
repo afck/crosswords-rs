@@ -12,17 +12,25 @@ fn load_dict(filename: &str) -> Result<BTreeSet<String>> {
     let mut dict = BTreeSet::new();
     for line in reader.lines() {
         // TODO: Use to_uppercase() once it's stable.
-        let word = line.unwrap().to_ascii_uppercase().trim()
-                       .replace("ä", "AE")
-                       .replace("ö", "OE")
-                       .replace("ü", "UE")
-                       .replace("ß", "SS");
-        dict.insert(word);
+        if let Ok(lword) = line {
+            let word = lword.to_ascii_uppercase().trim()
+                           .replace("ä", "AE")
+                           .replace("Ä", "AE")
+                           .replace("ö", "OE")
+                           .replace("Ö", "OE")
+                           .replace("ü", "UE")
+                           .replace("Ü", "UE")
+                           .replace("ß", "SS");
+            if word.chars().all(|c| c.is_alphabetic() && c.is_ascii()) {
+                dict.insert(word.clone());
+            }
+        }
     }
     Ok(dict)
 }
 
 fn main() {
-    let dict = load_dict("dict/top1000de.txt").unwrap();
+    let dict = load_dict("dict/top10000de.txt").unwrap();
+    println!("{} words", dict.len());
     generate_crosswords(&dict, 20, 10);
 }

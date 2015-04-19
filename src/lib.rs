@@ -1,133 +1,135 @@
 extern crate rand;
 
+use cw::{Crosswords, BLOCK};
+use std::collections::{BTreeSet, HashMap};
+
+mod cw;
+
 use rand::Rng;
-use std::collections::{BTreeSet, HashSet};
-use std::fmt::{Debug, Formatter};
 
-static BLOCK: char = '#';
-
-#[derive(Clone, Copy)]
-enum Orientation {
-    HORIZONTAL,
-    VERTICAL,
+struct Dict {
+    words: Vec<BTreeSet<Vec<char>>>,
+    char_count: HashMap<char, usize>,
+    bigram_count: HashMap<(char, char), usize>,
+    char_total: usize,
+    bigram_total: usize,
 }
 
-struct Crosswords {
-    width: usize,
-    height: usize,
-    chars: Vec<char>,
-    border: Vec<bool>,
-    stack: Vec<(usize, usize, Orientation)>,
-    words: HashSet<String>,
-}
-
-impl Crosswords {
-    fn new(width: usize, height: usize) -> Crosswords {
-        Crosswords {
-            width: width,
-            height: height,
-            chars: std::iter::repeat(BLOCK).take(width * height).collect(),
-            border: std::iter::repeat(true).take(2 * width * height).collect(),
-            stack: Vec::new(),
-            words: HashSet::new(),
+impl Dict {
+    fn new() -> Dict {
+        Dict {
+            words: Vec::new(),
+            char_count: HashMap::new(),
+            bigram_count: HashMap::new(),
+            char_total: 0,
+            bigram_total: 0,
         }
     }
 
-    fn is_char_allowed(&self, p: usize, c: char) -> bool {
-        let existing = self.chars[p];
-        c == existing || existing == BLOCK
+    fn with_words<T: Iterator<Item = String>>(all_words: T) -> Dict {
+        let mut dict = Dict::new();
+        for word in all_words {
+            dict.add_word(&word.chars().collect());
+        }
+        dict
     }
 
-    fn put_char(&mut self, p: usize, c: char) -> char {
-        let existing = self.chars[p];
-        self.chars[p] = c;
-        existing
-    }
-
-    fn is_word_allowed(&self, x: usize, y: usize, orientation: Orientation, word: &String) -> bool {
-        let p = x + self.width * y;
-        let (r, brd, lim, dp) = match orientation {
-            Orientation::HORIZONTAL => (x, 0, self.width, 1),
-            Orientation::VERTICAL => (y, 1, self.height, self.width),
-        };
-        let len = word.len();
-        !self.words.contains(word)
-            && len >= 1 && r + len - 1 < lim
-            && (r == 0 || self.border[brd + 2 * (p - dp)])
-            && word.chars().enumerate().all(|(i, c)| self.is_char_allowed(p + i * dp, c)
-                                            && self.border[brd + 2 * (p + i * dp)])
-    }
-
-    fn put_word(&mut self, x: usize, y: usize, orientation: Orientation, word: &String) {
-        let p = x + self.width * y;
-        let (brd, dp) = match orientation {
-            Orientation::HORIZONTAL => (0, 1),
-            Orientation::VERTICAL => (1, self.width),
-        };
-        let len = word.len();
-        for (i, c) in word.chars().enumerate() {
-            self.put_char(p + i * dp, c);
+    fn add_word(&mut self, word: &Vec<char>) {
+        while self.words.len() < word.len() + 1 {
+            self.words.push(BTreeSet::new());
         }
-        for i in 0..(len - 1) {
-            self.border[brd + 2 * (p + i * dp)] = false;
+        if !self.words[word.len()].insert(word.clone()) {
+            return; // Word already present
         }
-        self.words.insert(word.clone());
-        self.stack.push((x, y, orientation));
-    }
-
-    fn try_word(&mut self, x: usize, y: usize, orientation: Orientation, word: &String) -> bool {
-        if self.is_word_allowed(x, y, orientation, word) {
-            self.put_word(x, y, orientation, word);
-            true
-        } else {
-            false
-        }
-    }
-
-    /*fn pop_word(&mut self) -> Option<String> {
-        self.stack.pop().unwrap().map(|(x, y, orientation)|
-            let mut word = String::new();
-
-        for (i, c) in sword.chars().enumerate() {
-            self.chars[p + i * dp] = c;
-        }
-        self.words.remove(&word);
-        word
-        )
-    }*/
-}
-
-impl Debug for Crosswords {
-    fn fmt(&self, formatter: &mut Formatter) -> Result<(), std::fmt::Error> {
-        for _ in 0..self.width {
-            try!(formatter.write_str(" \u{2014}"));
-        }
-        try!(formatter.write_str(" \n"));
-        for y in 0..self.height {
-            try!(formatter.write_str("|"));
-            for p in (y * self.width)..((y + 1) * self.width) {
-                try!((&self.chars[p] as &std::fmt::Display).fmt(formatter));
-                try!(formatter.write_str(if self.border[2 * p] { "|" } else { " " }));
+        let mut prev_c = BLOCK;
+        for &c in word.iter() {
+            let old_count = *self.char_count.get(&c).unwrap_or(&0);
+            self.char_count.insert(c, old_count + 1);
+            self.char_total += 1;
+            if prev_c != BLOCK {
+                let old_bg_count = *self.bigram_count.get(&(prev_c, c)).unwrap_or(&0);
+                self.bigram_count.insert((prev_c, c), old_bg_count + 1);
+                self.bigram_total += 1;
             }
-            try!(formatter.write_str("\n"));
-            for p in (y * self.width)..((y + 1) * self.width) {
-                try!(formatter.write_str(if self.border[2 * p + 1] { " \u{2014}" } else { "  " }));
-            }
-            try!(formatter.write_str(" \n"));
+            prev_c = c;
         }
-        Ok(())
+    }
+
+    fn matches(word: &Vec<char>, pattern: &Vec<char>) -> bool {
+        word.len() <= pattern.len()
+            && word.iter().zip(pattern.iter()).all(|(&cw, &cp)| cw == cp || cp == BLOCK)
+    }
+
+    fn get_matches(&self, pattern: &Vec<char>) -> Vec<Vec<char>> {
+        let mut matches = Vec::new();
+        for i in (2..pattern.len()).rev() {
+            if i >= self.words.len() { continue; }
+            for word in self.words[i].iter() {
+                if Dict::matches(word, pattern) {
+                    matches.push(word.clone());
+                    if matches.len() > 5 {
+                        return matches;
+                    }
+                }
+            }
+        }
+        matches
+    }
+
+    fn estimate_matches(&self, pattern: &Vec<char>) -> f32 {
+        let mut est =
+            self.words.iter().take(pattern.len() + 1).fold(0, |c, set| c + set.len()) as f32;
+        let mut prev_c = BLOCK;
+        for &c in pattern.iter() {
+            if c != BLOCK {
+                est *= if prev_c != BLOCK {
+                    (*self.bigram_count.get(&(prev_c, c)).unwrap_or(&0) as f32)
+                        / (self.bigram_total as f32)
+                        / (*self.char_count.get(&prev_c).unwrap_or(&0) as f32)
+                        * (self.char_total as f32)
+                } else {
+                    (*self.char_count.get(&c).unwrap_or(&0) as f32) / (self.char_total as f32)
+                }
+            }
+            prev_c = c;
+        }
+        est
     }
 }
 
-pub fn generate_crosswords(dict: &BTreeSet<String>, width: usize, height: usize) {
+pub fn generate_crosswords(words: &BTreeSet<String>, width: usize, height: usize) {
     let mut cw = Crosswords::new(width, height);
     let mut rng = rand::thread_rng();
-    let words: Vec<String> = dict.iter().cloned().collect();
-    for _ in 0..10000 {
-        let (x, y) = (rng.gen_range(0, width - 1), rng.gen_range(0, height - 1));
-        let word = rng.choose(&words[..]).unwrap();
-        cw.try_word(x, y, Orientation::VERTICAL, word)
-          || cw.try_word(x, y, Orientation::HORIZONTAL, word);
+    let dict = Dict::with_words(words.iter().cloned());
+    for _ in 0..1000 {
+        let mut est_map = HashMap::new();
+        for (x, y, dir, range) in cw.get_ranges().into_iter() {
+            est_map.insert((x, y, dir, range.clone()),
+                (dict.estimate_matches(&range) * 10000_f32) as u64);
+        }
+        //if let Some(&min_est) = est_map.values().min() {
+        let min_est = est_map.values().fold(0, |c, v| c + v) / (est_map.len() as u64);
+        let min_keys: Vec<_> = est_map.into_iter()
+            .filter(|&(_, value)| value <= min_est).collect();
+        if !min_keys.is_empty() {
+            let &((x, y, dir, ref range), _) = rng.choose(&min_keys[..]).unwrap();
+            let mut matches = dict.get_matches(&range);
+            if matches.is_empty() {
+                let pattern: String = range.iter().cloned().collect();
+                println!("No match for {}, popping word(s).", pattern);
+                let n = if rng.gen_range(0, 20) == 0 { rng.gen_range(0, 3) } else { 1 };
+                for _ in 0..n {
+                    cw.pop_word();
+                }
+            } else {
+                rng.shuffle(&mut matches[..]);
+                for word in matches.into_iter() {
+                    if cw.try_word(x, y, dir, &word) {
+                        break;
+                    }
+                }
+            }
+        }
     }
     println!("{:?}", cw);
 }
