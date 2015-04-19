@@ -62,7 +62,7 @@ impl Dict {
 
     fn get_matches(&self, pattern: &Vec<char>) -> Vec<Vec<char>> {
         let mut matches = Vec::new();
-        for i in (2..pattern.len()).rev() {
+        for i in (2..(pattern.len() + 1)).rev() {
             if i >= self.words.len() { continue; }
             for word in self.words[i].iter() {
                 if Dict::matches(word, pattern) {
@@ -107,6 +107,7 @@ pub fn generate_crosswords(words: &BTreeSet<String>, width: usize, height: usize
             est_map.insert((x, y, dir, range.clone()),
                 (dict.estimate_matches(&range) * 10000_f32) as u64);
         }
+        if est_map.is_empty() { break; }
         //if let Some(&min_est) = est_map.values().min() {
         let min_est = est_map.values().fold(0, |c, v| c + v) / (est_map.len() as u64);
         let min_keys: Vec<_> = est_map.into_iter()

@@ -21,7 +21,7 @@ fn load_dict(filename: &str) -> Result<BTreeSet<String>> {
                            .replace("ü", "UE")
                            .replace("Ü", "UE")
                            .replace("ß", "SS");
-            if word.chars().all(|c| c.is_alphabetic() && c.is_ascii()) {
+            if word.chars().all(|c| c.is_alphabetic() && c.is_ascii()) && word.len() > 1 {
                 dict.insert(word.clone());
             }
         }

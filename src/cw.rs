@@ -2,8 +2,70 @@ use std::collections::HashSet;
 use std::iter;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
+use std::ops::{Add, Mul, Sub};
 
 pub static BLOCK: char = '\u{2588}';
+
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Point {
+    #[inline]
+    fn coord(&self, w: usize, h: usize) -> Option<usize> {
+        if self.x < 0 || self.y < 0 || self.x as usize >= w || self.y as usize >= h {
+            None
+        } else {
+            Some((self.x as usize) + w * (self.y as usize))
+        }
+    }
+}
+
+impl Add for Point {
+    type Output = Point;
+
+    fn add(self, rhs: Point) -> Point {
+        Point {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
+    }
+}
+
+impl Sub for Point {
+    type Output = Point;
+
+    fn sub(self, rhs: Point) -> Point {
+        Point {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
+}
+
+impl Mul<i32> for Point {
+    type Output = Point;
+
+    fn mul(self, rhs: i32) -> Point {
+        Point {
+            x: self.x * rhs,
+            y: self.y * rhs,
+        }
+    }
+}
+
+impl Mul<usize> for Point {
+    type Output = Point;
+
+    fn mul(self, rhs: usize) -> Point {
+        Point {
+            x: self.x * (rhs as i32),
+            y: self.y * (rhs as i32),
+        }
+    }
+}
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub enum Dir {
@@ -18,6 +80,13 @@ impl Dir {
             Dir::Down => Dir::Right,
         }
     }
+
+    fn point(&self) -> Point {
+        match *self {
+            Dir::Right => Point { x: 1, y: 0 },
+            Dir::Down => Point { x: 0, y: 1 },
+        }
+    }
 }
 
 pub struct Crosswords {
@@ -26,7 +95,7 @@ pub struct Crosswords {
     chars: Vec<char>,
     right_border: Vec<bool>,
     down_border: Vec<bool>,
-    stack: Vec<(usize, usize, Dir)>,
+    stack: Vec<(Point, Dir)>,
     words: HashSet<Vec<char>>,
 }
 
@@ -36,85 +105,86 @@ impl Crosswords {
             width: width,
             height: height,
             chars: iter::repeat(BLOCK).take(width * height).collect(),
-            right_border: iter::repeat(true).take(width * height).collect(),
-            down_border: iter::repeat(true).take(width * height).collect(),
+            right_border: iter::repeat(true).take((width - 1) * height).collect(),
+            down_border: iter::repeat(true).take(width * (height - 1)).collect(),
             stack: Vec::new(),
             words: HashSet::new(),
         }
     }
 
     #[inline]
-    fn get_border(&self, p: usize, dir: Dir) -> bool {
+    fn get_border(&self, point: Point, dir: Dir) -> bool {
         match dir {
-            Dir::Right => self.right_border[p],
-            Dir::Down => self.down_border[p],
+            Dir::Right => match point.coord(self.width - 1, self.height) {
+                None => true,
+                Some(p) => self.right_border[p],
+            },
+            Dir::Down => match point.coord(self.width, self.height - 1) {
+                None => true,
+                Some(p) => self.down_border[p],
+            }
         }
     }
 
     #[inline]
-    fn set_border(&mut self, p: usize, dir: Dir, value: bool) {
+    fn set_border(&mut self, point: Point, dir: Dir, value: bool) {
         match dir {
-            Dir::Right => self.right_border[p] = value,
-            Dir::Down => self.down_border[p] = value,
+            Dir::Right => match point.coord(self.width - 1, self.height) {
+                None => if !value { unreachable!() },
+                Some(p) => self.right_border[p] = value,
+            },
+            Dir::Down => match point.coord(self.width, self.height - 1) {
+                None => if !value { unreachable!() },
+                Some(p) => self.down_border[p] = value,
+            }
         }
     }
 
     #[inline]
-    fn get_corridor(&self, p: usize, dir: Dir) -> bool {
-        self.get_border(p, dir.other()) && match dir {
-            Dir::Right => p < self.width || self.down_border[p - self.width],
-            Dir::Down => p % self.width == 0 || self.right_border[p - 1],
+    fn is_char_allowed(&self, point: Point, c: char) -> bool {
+        match point.coord(self.width, self.height) {
+            None => false,
+            Some(p) => {
+                let existing = self.chars[p];
+                c == existing || existing == BLOCK
+            }
         }
     }
 
     #[inline]
-    fn is_char_allowed(&self, p: usize, c: char) -> bool {
-        let existing = self.chars[p];
-        c == existing || existing == BLOCK
-    }
-
-    #[inline]
-    fn put_char(&mut self, p: usize, c: char) -> char {
+    fn put_char(&mut self, point: Point, c: char) -> char {
+        let p = point.coord(self.width, self.height).unwrap();
         let existing = self.chars[p];
         self.chars[p] = c;
         existing
     }
 
-    #[inline]
-    fn get_p_dp(&self, x: usize, y: usize, dir: Dir) -> (usize, usize) {
-        let p = x + self.width * y;
-        let dp = match dir { Dir::Right => 1, Dir::Down => self.width };
-        (p, dp)
+    pub fn is_word_allowed(&self, point: Point, dir: Dir, word: &Vec<char>) -> bool {
+        let dp = dir.point();
+        let len = word.len() as i32;
+        !self.words.contains(word) && !word.is_empty()
+            && self.get_border(point - dp, dir)
+            && self.get_border(point + dp * (len - 1), dir)
+            && word.iter().enumerate().all(|(i, &c)| self.is_char_allowed(point + dp * i, c))
     }
 
-    pub fn is_word_allowed(&self, x: usize, y: usize, dir: Dir, word: &Vec<char>) -> bool {
-        let (p, dp) = self.get_p_dp(x, y, dir);
-        let (r, lim) = match dir {
-            Dir::Right => (x, self.width),
-            Dir::Down => (y, self.height),
-        };
-        !self.words.contains(word)
-            && !word.is_empty() && r + word.len() - 1 < lim
-            && (r == 0 || self.get_border(p - dp, dir))
-            && word.iter().enumerate().all(|(i, &c)| self.is_char_allowed(p + i * dp, c)
-                                                     && self.get_border(p + i * dp, dir))
-    }
-
-    fn push_word(&mut self, x: usize, y: usize, dir: Dir, word: &Vec<char>) {
-        let (p, dp) = self.get_p_dp(x, y, dir);
+    fn push_word(&mut self, point: Point, dir: Dir, word: &Vec<char>) {
+        let dp = dir.point();
+        let len = word.len() as i32;
         for (i, &c) in word.iter().enumerate() {
-            self.put_char(p + i * dp, c);
+            self.put_char(point + dp * i, c);
         }
-        for i in 0..(word.len() - 1) {
-            self.set_border(p + i * dp, dir, false);
+        for i in 0..(len - 1) {
+            self.set_border(point + dp * i, dir, false);
         }
         self.words.insert(word.clone());
-        self.stack.push((x, y, dir));
+        self.stack.push((point, dir));
     }
 
     pub fn try_word(&mut self, x: usize, y: usize, dir: Dir, word: &Vec<char>) -> bool {
-        if self.is_word_allowed(x, y, dir, word) {
-            self.push_word(x, y, dir, word);
+        let point = Point { x: x as i32, y: y as i32 };
+        if self.is_word_allowed(point, dir, word) {
+            self.push_word(point, dir, word);
             true
         } else {
             false
@@ -147,38 +217,36 @@ impl Crosswords {
     }
 
     pub fn get_range(&self, x: usize, y: usize, dir: Dir) -> Vec<char> {
-        let (p, dp) = self.get_p_dp(x, y, dir);
-        let (r, lim) = match dir {
-            Dir::Right => (x, self.width),
-            Dir::Down => (y, self.height),
-        };
-        let mut word = Vec::new();
-        if !self.get_border(p, dir) || !(r == 0 || self.get_border(p - dp, dir)) {
-            return word;
+        let mut point = Point { x: x as i32, y: y as i32 };
+        let dp = dir.point();
+        if !self.get_border(point - dp, dir) {
+            return Vec::new();
         }
-        word.push(self.chars[p]);
-        for i in 1..(lim - r) {
-            if !self.get_border(p + i * dp, dir) { break; }
-            word.push(self.chars[p + i * dp]);
+        let mut word = Vec::new();
+        while let Some(p) = point.coord(self.width, self.height) {
+            if !self.get_border(point, dir) { break; }
+            word.push(self.chars[p]);
+            point = point + dp;
         }
         word
     }
 
     pub fn pop_word(&mut self) -> Option<Vec<char>> {
-        self.stack.pop().map(|(x, y, dir)| {
-            let (p, dp) = self.get_p_dp(x, y, dir);
-            let (_, dop) = self.get_p_dp(x, y, dir.other());
+        self.stack.pop().map(|(mut point, dir)| {
             let mut word = Vec::new();
-            word.push(self.put_char(p, BLOCK));
-            let mut i = 0;
-            while !self.get_border(p + i * dp, dir) {
-                self.set_border(p + i * dp, dir, true);
-                i += 1;
-                if self.get_corridor(p + i * dp, dir) {
-                    word.push(self.put_char(p + i * dp, BLOCK));
+            let dp = dir.point();
+            let odir = dir.other();
+            let odp = odir.point();
+            while let Some(p) = point.coord(self.width, self.height) {
+                let last = self.get_border(point, dir);
+                self.set_border(point, dir, true);
+                if self.get_border(point, odir) && self.get_border(point - odp, odir) {
+                    word.push(self.put_char(point, BLOCK));
                 } else {
-                    word.push(self.chars[p + i * dp]);
+                    word.push(self.chars[p]);
                 }
+                if last { break; }
+                point = point + dp;
             }
             self.words.remove(&word);
             word
@@ -187,12 +255,13 @@ impl Crosswords {
 
     fn count_borders(&self) -> usize {
         let mut count = 0;
-        for p in 0..(self.width * self.height) {
+        for p in 0..((self.width - 1) * self.height) {
             if self.right_border[p] { count += 1; }
+        }
+        for p in 0..(self.width * (self.height - 1)) {
             if self.down_border[p] { count += 1; }
         }
-        // The rightmost and bottom borders are always there.
-        count - self.width - self.height
+        count
     }
 }
 
@@ -204,14 +273,18 @@ impl Debug for Crosswords {
         try!(formatter.write_str(" \n"));
         for y in 0..self.height {
             try!(formatter.write_str("|"));
-            for p in (y * self.width)..((y + 1) * self.width) {
-                try!((&self.chars[p] as &fmt::Display).fmt(formatter));
-                try!(formatter.write_str(if self.get_border(p, Dir::Right) { "|" } else { " " }));
+            for x in 0..self.width {
+                let point = Point { x: x as i32, y: y as i32};
+                try!((&self.chars[point.coord(self.width, self.height).unwrap()] as &fmt::Display)
+                     .fmt(formatter));
+                try!(formatter.write_str(
+                        if self.get_border(point, Dir::Right) { "|" } else { " " }));
             }
             try!(formatter.write_str("\n"));
-            for p in (y * self.width)..((y + 1) * self.width) {
+            for x in 0..self.width {
+                let point = Point { x: x as i32, y: y as i32};
                 try!(formatter.write_str(
-                        if self.get_border(p, Dir::Down) { " \u{2014}" } else { "  " }));
+                        if self.get_border(point, Dir::Down) { " \u{2014}" } else { "  " }));
             }
             try!(formatter.write_str(" \n"));
         }
