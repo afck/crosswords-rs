@@ -51,6 +51,16 @@ impl<'a> RangesIter<'a> {
         }
     }
 
+    fn new_words(cw: &'a Crosswords) -> Self {
+        RangesIter {
+            point: Point::new(0, 0),
+            dir: Dir::Right,
+            ended: false,
+            cw: cw,
+            words: true,
+        }
+    }
+
     fn advance(&mut self, len: usize) {
         if self.ended { return; }
         match self.dir {
@@ -255,6 +265,10 @@ impl Crosswords {
             }
         }
         len
+    }
+
+    pub fn words<'a>(&'a self) -> RangesIter<'a> {
+        RangesIter::new_words(&self)
     }
 
     pub fn get_word_len_at(&self, mut point: Point, dir: Dir) -> usize {

@@ -1,7 +1,27 @@
-use cw::{BLOCK, Crosswords, Dir};
+use cw::{BLOCK, Crosswords, Dir, Range};
 use dict::Dict;
 use point::Point;
 use rand::Rng;
+use std::cmp::Ordering;
+
+fn choose_lowest<S: Copy, SI: Iterator<Item = (S, f32)>, T: Rng>(rng: &mut T, si: SI) -> Option<S> {
+    let mut est: Vec<(S, f32)> = si.collect();
+    if est.is_empty() { return None; }
+    est.sort_by(|&(_, s0), &(_, s1)| s0.partial_cmp(&s1).unwrap_or(Ordering::Equal));
+    let r = rng.gen_range(0_f32, 1_f32);
+    let (s, _) = est[(r * r * r * (est.len() as f32)).trunc() as usize];
+    Some(s)
+}
+
+fn range_connectedness(cw: &Crosswords, range: &Range) -> f32 {
+    let odir = range.dir.other();
+    let (dp, odp) = (range.dir.point(), odir.point());
+    let count = (0..range.len).filter(|&i| {
+        let p = range.point + dp * i;
+        !cw.get_border(p, odir) || !cw.get_border(p - odp, odir)
+    }).count();
+    (count as f32) / (range.len as f32)
+}
 
 pub struct Author<T: Rng> {
     cw: Crosswords,
@@ -18,26 +38,21 @@ impl<T: Rng> Author<T> {
         &self.cw
     }
 
-    fn choose_range(&mut self) -> Option<(Point, Dir, Vec<char>)> {
-        let mut est = Vec::new();
-        for range in self.cw.free_ranges() {
-            let chars = self.cw.chars(range).collect();
-            est.push((range, (self.dict.estimate_matches(&chars) * 10000_f32) as u64));
-        }
-        if est.is_empty() { return None; }
-        est.sort_by(|&(_, ref s0), &(_, ref s1)| s0.cmp(s1));
-        let r: f32 = self.rng.gen_range(0_f32, 1_f32);
-        let (range, _) = est[(r * r * r * (est.len() as f32)).trunc() as usize];
-        Some((range.point, range.dir, self.cw.chars(range).collect()))
+    fn choose_range(&mut self) -> Option<Range> {
+        let (cw, dict) = (&self.cw, &self.dict);
+        choose_lowest(&mut self.rng, cw.free_ranges().filter_map(|range| {
+            if cw.chars(range).any(|c| c == BLOCK) {
+                let chars = cw.chars(range);
+                Some((range, dict.estimate_matches(chars)))
+            } else { None }
+        }))
     }
 
     fn remove_word(&mut self) {
-        let n = self.rng.gen_range(0, 3);
-        for _ in 0..n {
-            let point = Point::new(self.rng.gen_range(0, self.cw.get_width() as i32),
-                                   self.rng.gen_range(0, self.cw.get_height() as i32));
-            let dir = match self.rng.gen_range(0, 2) { 0 => Dir::Right, _ => Dir::Down };
-            self.cw.pop_word(point, dir);
+        let cw = &mut self.cw;
+        if let Some(range) = choose_lowest(&mut self.rng, cw.words().map(|range|
+                (range, -range_connectedness(&cw, &range)))) {
+            cw.pop_word(range.point, range.dir);
         }
     }
 
@@ -50,8 +65,8 @@ impl<T: Rng> Author<T> {
             if self.cw.get_char(point) == Some(BLOCK) {
                 let range = self.cw.get_char(point - odp).into_iter()
                     .chain(Some(m[i]).into_iter())
-                    .chain(self.cw.get_char(point + odp).into_iter()).collect();
-                eval += self.dict.estimate_matches(&range);
+                    .chain(self.cw.get_char(point + odp).into_iter());
+                eval += self.dict.estimate_matches(range);
             }
             point = point + dp;
         }
@@ -66,8 +81,9 @@ impl<T: Rng> Author<T> {
     }
 
     fn improve_cw(&mut self) {
-        if let Some((point, dir, range)) = self.choose_range() {
-            let matches = self.sort_matches(self.dict.get_matches(&range, 100), point, dir);
+        if let Some(range) = self.choose_range() {
+            let (point, dir) = (range.point, range.dir);
+            let matches = self.sort_matches(self.dict.get_matches(&self.cw.chars(range).collect(), 100), point, dir);
             if matches.is_empty() {
                 self.remove_word();
             } else {
@@ -77,6 +93,9 @@ impl<T: Rng> Author<T> {
                     }
                 }
             }
+        } else {
+            self.finalize_cw();
+            self.remove_word();
         }
     }
 

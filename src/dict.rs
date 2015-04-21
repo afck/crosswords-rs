@@ -74,11 +74,11 @@ impl Dict {
         matches
     }
 
-    pub fn estimate_matches(&self, pattern: &Vec<char>) -> f32 {
-        let mut est =
-            self.words.iter().take(pattern.len() + 1).fold(0, |c, set| c + set.len()) as f32;
+    pub fn estimate_matches<T: Iterator<Item = char>>(&self, pattern: T) -> f32 {
+        let mut est = 1_f32;
+        let mut candidates = 0_f32;
         let mut ng = Vec::new();
-        for &c in pattern.iter().chain(Some(BLOCK).iter()) {
+        for (i, c) in pattern.chain(Some(BLOCK).into_iter()).enumerate() {
             if c == BLOCK {
                 est *= *self.ngram_freq.get(&ng).unwrap_or(&0_f32);
                 ng.clear();
@@ -89,8 +89,11 @@ impl Dict {
                     ng.remove(0);
                 }
             }
+            if let Some(s) = self.words.get(i) {
+                candidates += s.len() as f32;
+            }
         }
-        est
+        est * candidates
     }
 }
 
