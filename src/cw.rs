@@ -49,6 +49,9 @@ impl Crosswords {
         }
     }
 
+    pub fn get_width(&self) -> usize { self.width }
+    pub fn get_height(&self) -> usize { self.height }
+
     #[inline]
     pub fn get_border(&self, point: Point, dir: Dir) -> bool {
         match dir {

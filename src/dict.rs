@@ -1,51 +1,44 @@
 use cw::BLOCK;
 use std::collections::{BTreeSet, HashMap};
+use std::iter;
 
 pub struct Dict {
     words: Vec<BTreeSet<Vec<char>>>,
-    char_count: HashMap<char, usize>,
-    bigram_count: HashMap<(char, char), usize>,
-    char_total: usize,
-    bigram_total: usize,
+    ngram_freq: HashMap<Vec<char>, f32>,
+    ngram_n: usize,
 }
 
 impl Dict {
-    pub fn new() -> Dict {
-        Dict {
-            words: Vec::new(),
-            char_count: HashMap::new(),
-            bigram_count: HashMap::new(),
-            char_total: 0,
-            bigram_total: 0,
-        }
-    }
-
-    pub fn with_words<T: Iterator<Item = String>>(all_words: T) -> Dict {
-        let mut dict = Dict::new();
-        for word in all_words {
-            dict.add_word(&word.chars().collect());
-        }
-        dict
-    }
-
-    fn add_word(&mut self, word: &Vec<char>) {
-        while self.words.len() < word.len() + 1 {
-            self.words.push(BTreeSet::new());
-        }
-        if !self.words[word.len()].insert(word.clone()) {
-            return; // Word already present
-        }
-        let mut prev_c = BLOCK;
-        for &c in word.iter() {
-            let old_count = *self.char_count.get(&c).unwrap_or(&0);
-            self.char_count.insert(c, old_count + 1);
-            self.char_total += 1;
-            if prev_c != BLOCK {
-                let old_bg_count = *self.bigram_count.get(&(prev_c, c)).unwrap_or(&0);
-                self.bigram_count.insert((prev_c, c), old_bg_count + 1);
-                self.bigram_total += 1;
+    pub fn new<T: Iterator<Item = String>>(all_words: T) -> Dict {
+        let mut words = Vec::new();
+        let ngram_n = 3;
+        let mut ng_total: Vec<_> = iter::repeat(0).take(ngram_n).collect();
+        let mut ng_count: Vec<_> = (0..ngram_n).map(|_| HashMap::new()).collect();
+        for string_word in all_words {
+            let word: Vec<char> = string_word.chars().collect();
+            while words.len() < word.len() + 1 {
+                words.push(BTreeSet::new());
             }
-            prev_c = c;
+            if words[word.len()].insert(word.clone()) {
+                for i in 0..ngram_n {
+                    for ng in word.windows(i + 1) {
+                        ng_total[i] += 1;
+                        let old_count = *ng_count[i].get(&ng.to_vec()).unwrap_or(&0);
+                        ng_count[i].insert(ng.to_vec(), old_count + 1);
+                    }
+                }
+            }
+        }
+        let mut ngram_freq = HashMap::new();
+        for i in 0..ngram_n {
+            let t = ng_total[i] as f32;
+            ngram_freq.extend(ng_count[i].iter().map(|(ng, &c)| (ng.clone(), (c as f32) / t)));
+        }
+        ngram_freq.insert(Vec::new(), 1_f32);
+        Dict {
+            words: words,
+            ngram_freq: ngram_freq,
+            ngram_n: ngram_n,
         }
     }
 
@@ -54,17 +47,28 @@ impl Dict {
             && word.iter().zip(pattern.iter()).all(|(&cw, &cp)| cw == cp || cp == BLOCK)
     }
 
-    pub fn get_matches(&self, pattern: &Vec<char>) -> Vec<Vec<char>> {
+    pub fn find_matches(&self, pattern: &Vec<char>, n: usize) -> Vec<Vec<char>> {
+        let len = pattern.len();
+        if len >= self.words.len() { return Vec::new(); }
+        let mut matches = Vec::new();
+        for word in self.words[len].iter() {
+            if Dict::matches(word, pattern) {
+                matches.push(word.clone());
+                if matches.len() > n {
+                    return matches;
+                }
+            }
+        }
+        matches
+    }
+
+    pub fn get_matches(&self, pattern: &Vec<char>, n: usize) -> Vec<Vec<char>> {
         let mut matches = Vec::new();
         for i in (2..(pattern.len() + 1)).rev() {
-            if i >= self.words.len() { continue; }
-            for word in self.words[i].iter() {
-                if Dict::matches(word, pattern) {
-                    matches.push(word.clone());
-                    if matches.len() > 5 {
-                        return matches;
-                    }
-                }
+            let len = matches.len();
+            matches.extend(self.find_matches(&pattern[..i].to_vec(), n - len));
+            if matches.len() > n {
+                return matches;
             }
         }
         matches
@@ -73,19 +77,18 @@ impl Dict {
     pub fn estimate_matches(&self, pattern: &Vec<char>) -> f32 {
         let mut est =
             self.words.iter().take(pattern.len() + 1).fold(0, |c, set| c + set.len()) as f32;
-        let mut prev_c = BLOCK;
-        for &c in pattern.iter() {
-            if c != BLOCK {
-                est *= if prev_c != BLOCK {
-                    (*self.bigram_count.get(&(prev_c, c)).unwrap_or(&0) as f32)
-                        / (self.bigram_total as f32)
-                        / (*self.char_count.get(&prev_c).unwrap_or(&0) as f32)
-                        * (self.char_total as f32)
-                } else {
-                    (*self.char_count.get(&c).unwrap_or(&0) as f32) / (self.char_total as f32)
+        let mut ng = Vec::new();
+        for &c in pattern.iter().chain(Some(BLOCK).iter()) {
+            if c == BLOCK {
+                est *= *self.ngram_freq.get(&ng).unwrap_or(&0_f32);
+                ng.clear();
+            } else {
+                ng.push(c);
+                if ng.len() == self.ngram_n {
+                    est *= *self.ngram_freq.get(&ng).unwrap_or(&0_f32);
+                    ng.remove(0);
                 }
             }
-            prev_c = c;
         }
         est
     }
