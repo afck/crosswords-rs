@@ -14,10 +14,9 @@ use std::collections::BTreeSet;
 pub fn generate_crosswords(words: &BTreeSet<String>, width: usize, height: usize) {
     let mut author = Author::new(Crosswords::new(width, height), Dict::new(words.iter().cloned()),
                                  rand::thread_rng());
-    for _ in 0..1000 {
-        author.improve_cw();
-    }
-    println!("Finalizing ...");
-    author.finalize_cw();
+    author.create_cw();
     println!("{:?}", author.get_cw());
+    //println!("Finalizing ...");
+    //author.finalize_cw();
+    //println!("{:?}", author.get_cw());
 }

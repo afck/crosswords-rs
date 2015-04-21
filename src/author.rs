@@ -20,14 +20,15 @@ impl<T: Rng> Author<T> {
 
     fn choose_range(&mut self) -> Option<(Point, Dir, Vec<char>)> {
         let mut est = Vec::new();
-        for (point, dir, range) in self.cw.get_ranges().into_iter() {
-            est.push((point, dir, (self.dict.estimate_matches(&range) * 10000_f32) as u64));
+        for range in self.cw.free_ranges() {
+            let chars = self.cw.chars(range).collect();
+            est.push((range, (self.dict.estimate_matches(&chars) * 10000_f32) as u64));
         }
         if est.is_empty() { return None; }
-        est.sort_by(|&(_, _, ref s0), &(_, _, ref s1)| s0.cmp(s1));
+        est.sort_by(|&(_, ref s0), &(_, ref s1)| s0.cmp(s1));
         let r: f32 = self.rng.gen_range(0_f32, 1_f32);
-        let (point, dir, _) = est[(r * r * r * (est.len() as f32)).trunc() as usize];
-        Some((point, dir, self.cw.get_range(point, dir)))
+        let (range, _) = est[(r * r * r * (est.len() as f32)).trunc() as usize];
+        Some((range.point, range.dir, self.cw.chars(range).collect()))
     }
 
     fn remove_word(&mut self) {
@@ -64,11 +65,11 @@ impl<T: Rng> Author<T> {
         evaluated.into_iter().map(|(m, _)| m).collect()
     }
 
-    pub fn improve_cw(&mut self) {
+    fn improve_cw(&mut self) {
         if let Some((point, dir, range)) = self.choose_range() {
             let matches = self.sort_matches(self.dict.get_matches(&range, 100), point, dir);
             if matches.is_empty() {
-                //self.remove_word();
+                self.remove_word();
             } else {
                 for word in matches.into_iter() {
                     if self.cw.try_word(point, dir, &word) {
@@ -76,6 +77,12 @@ impl<T: Rng> Author<T> {
                     }
                 }
             }
+        }
+    }
+
+    pub fn create_cw(&mut self) {
+        for _ in 0..1000 {
+            self.improve_cw();
         }
     }
 

@@ -6,6 +6,98 @@ use std::fmt::{Debug, Formatter};
 
 pub static BLOCK: char = '\u{2588}';
 
+#[derive(Clone, Copy)]
+pub struct Range {
+    pub point: Point,
+    pub dir: Dir,
+    pub len: usize,
+}
+
+pub struct RangeIter<'a> {
+    range: Range,
+    cw: &'a Crosswords,
+}
+
+impl<'a> Iterator for RangeIter<'a> {
+    type Item = char;
+    fn next(&mut self) -> Option<char> {
+        if self.range.len == 0 {
+            None
+        } else {
+            let point = self.range.point;
+            self.range.point = self.range.point + self.range.dir.point();
+            self.range.len -= 1;
+            self.cw.get_char(point)
+        }
+    }
+}
+
+pub struct RangesIter<'a> {
+    point: Point,
+    dir: Dir,
+    ended: bool,
+    cw: &'a Crosswords,
+    words: bool,
+}
+
+impl<'a> RangesIter<'a> {
+    fn new_free(cw: &'a Crosswords) -> Self {
+        RangesIter {
+            point: Point::new(0, 0),
+            dir: Dir::Right,
+            ended: false,
+            cw: cw,
+            words: false,
+        }
+    }
+
+    fn advance(&mut self, len: usize) {
+        if self.ended { return; }
+        match self.dir {
+            Dir::Right => {
+                self.point.x += len as i32;
+                if self.point.x >= self.cw.width as i32 {
+                    self.point.y += 1;
+                    self.point.x = 0;
+                    if self.point.y >= self.cw.height as i32 {
+                        self.point.y = 0;
+                        self.dir = Dir::Down;
+                    }
+                }
+            },
+            Dir::Down => {
+                self.point.y += len as i32;
+                if self.point.y >= self.cw.height as i32 {
+                    self.point.x += 1;
+                    self.point.y = 0;
+                    if self.point.x >= self.cw.width as i32 {
+                        self.ended = true;
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<'a> Iterator for RangesIter<'a> {
+    type Item = Range;
+    fn next(&mut self) -> Option<Range> {
+        while !self.ended {
+            let len = match self.words {
+                true => self.cw.get_word_len_at(self.point, self.dir),
+                false => self.cw.get_free_range_at(self.point, self.dir),
+            };
+            if len > 1 {
+                let (point, dir) = (self.point, self.dir);
+                self.advance(len); // TODO: If self.words, advance len + 2?
+                return Some(Range { point: point, dir: dir, len: len });
+            }
+            self.advance(1);
+        }
+        None
+    }
+}
+
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub enum Dir {
     Right,
@@ -103,6 +195,13 @@ impl Crosswords {
         point.coord(self.width, self.height).map(|p| self.chars[p])
     }
 
+    pub fn chars<'a>(&'a self, range: Range) -> RangeIter<'a> {
+        RangeIter {
+            range: range,
+            cw: &self,
+        }
+    }
+
     #[inline]
     fn put_char(&mut self, point: Point, c: char) -> char {
         let p = point.coord(self.width, self.height).unwrap();
@@ -141,45 +240,33 @@ impl Crosswords {
         }
     }
 
-    pub fn get_ranges(&self) -> Vec<(Point, Dir, Vec<char>)> {
-        let mut ranges = Vec::new();
-        for y in 0..self.height {
-            let mut x = 0;
-            while x + 1 < self.width {
-                let point = Point::new(x as i32, y as i32);
-                let range = self.get_range(point, Dir::Right);
-                if range.len() > 1 {
-                    ranges.push((point, Dir::Right, range.clone()));
-                    x += range.len();
-                } else { x += 1; }
-            }
-        }
-        for x in 0..self.width {
-            let mut y = 0;
-            while y + 1 < self.height {
-                let point = Point::new(x as i32, y as i32);
-                let range = self.get_range(point, Dir::Down);
-                if range.len() > 1 {
-                    ranges.push((point, Dir::Down, range.clone()));
-                    y += range.len();
-                } else { y += 1; }
-            }
-        }
-        ranges
+    pub fn free_ranges<'a>(&'a self) -> RangesIter<'a> {
+        RangesIter::new_free(&self)
     }
 
-    pub fn get_range(&self, mut point: Point, dir: Dir) -> Vec<char> {
+    pub fn get_free_range_at(&self, mut point: Point, dir: Dir) -> usize {
         let dp = dir.point();
-        if !self.get_border(point - dp, dir) {
-            return Vec::new();
+        let mut len = 0;
+        if (point - dp).coord(self.width, self.height).is_none()
+                || (self.get_border(point - dp, dir) && !self.get_border(point - dp * 2, dir)) {
+            while point.coord(self.width, self.height).is_some() && self.get_border(point, dir) {
+                len += 1;
+                point = point + dp;
+            }
         }
-        let mut word = Vec::new();
-        while let Some(p) = point.coord(self.width, self.height) {
-            if !self.get_border(point, dir) { break; }
-            word.push(self.chars[p]);
-            point = point + dp;
-        }
-        word
+        len
+    }
+
+    pub fn get_word_len_at(&self, mut point: Point, dir: Dir) -> usize {
+        let dp = dir.point();
+        if self.get_border(point - dp, dir) {
+            let mut len = 1;
+            while !self.get_border(point, dir) {
+                len += 1;
+                point = point + dp;
+            }
+            len
+        } else { 0 }
     }
 
     pub fn pop_word(&mut self, mut point: Point, dir: Dir) -> Option<Vec<char>> {
