@@ -88,9 +88,9 @@ impl<'a> Iterator for RangesIter<'a> {
                 false => self.cw.get_free_range_at(self.point, self.dir),
             };
             if len > 1 {
-                let (point, dir) = (self.point, self.dir);
+                let range = Range { point: self.point, dir: self.dir, len: len };
                 self.advance(len); // TODO: If self.words, advance len + 2?
-                return Some(Range { point: point, dir: dir, len: len });
+                return Some(range);
             }
             self.advance(1);
         }
