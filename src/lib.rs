@@ -5,17 +5,19 @@ mod cw;
 mod point;
 mod dict;
 
-use cw::Crosswords;
+pub use cw::Crosswords;
+pub use cw::PrintItem;
+
 use author::Author;
 use dict::Dict;
 use std::collections::BTreeSet;
 
-
-pub fn generate_crosswords(words: &BTreeSet<String>, width: usize, height: usize) {
+pub fn generate_crosswords(words: &BTreeSet<String>, width: usize, height: usize) -> Crosswords {
     let mut author = Author::new(Crosswords::new(width, height), Dict::new(words.iter().cloned()),
                                  rand::thread_rng());
     author.create_cw();
     println!("{:?}", author.get_cw());
+    author.get_cw().clone()
     //println!("Finalizing ...");
     //author.finalize_cw();
     //println!("{:?}", author.get_cw());

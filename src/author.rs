@@ -83,7 +83,8 @@ impl<T: Rng> Author<T> {
     fn improve_cw(&mut self) {
         if let Some(range) = self.choose_range() {
             let (point, dir) = (range.point, range.dir);
-            let matches = self.sort_matches(self.dict.get_matches(&self.cw.chars(range).collect(), 100), point, dir);
+            let matches = self.sort_matches(
+                self.dict.get_matches(&self.cw.chars(range).collect(), 100), point, dir);
             if matches.is_empty() {
                 self.remove_word();
             } else {
