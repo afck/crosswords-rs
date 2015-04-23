@@ -109,6 +109,7 @@ fn write_html(cw: Crosswords) -> Result<()> {
 
 fn main() {
     let dict = load_dict("dict/top10000de.txt").unwrap();
+    let favorites = load_dict("dict/favorites.txt").unwrap();
     println!("{} words", dict.len());
-    write_html(generate_crosswords(&dict, 19, 12)).unwrap();
+    write_html(generate_crosswords(&dict, &favorites, 19, 12)).unwrap();
 }

@@ -23,15 +23,23 @@ fn range_connectedness(cw: &Crosswords, range: &Range) -> f32 {
     (count as f32) / (range.len as f32)
 }
 
+#[derive(Clone)]
+struct Match {
+    word: Vec<char>,
+    point: Point,
+    dir: Dir,
+}
+
 pub struct Author<T: Rng> {
     cw: Crosswords,
     dict: Dict,
+    favorites: Vec<Vec<char>>,
     rng: T,
 }
 
 impl<T: Rng> Author<T> {
-    pub fn new(cw: Crosswords, dict: Dict, rng: T) -> Self {
-        Author { cw: cw, dict: dict, rng: rng }
+    pub fn new(cw: Crosswords, dict: Dict, favorites: Vec<Vec<char>>, rng: T) -> Self {
+        Author { cw: cw, dict: dict, favorites: favorites, rng: rng }
     }
 
     pub fn get_cw<'a>(&'a self) -> &'a Crosswords {
@@ -56,26 +64,32 @@ impl<T: Rng> Author<T> {
         }
     }
 
-    fn eval_match(&self, m: &Vec<char>, mut point: Point, dir: Dir) -> u64 {
+    fn eval_match(&self, m: &Match) -> u64 {
         let mut eval = 0_f32; //m.len() as f32;
-        let dp = dir.point();
-        let odir = dir.other();
+        let dp = m.dir.point();
+        let odir = m.dir.other();
         let odp = odir.point();
-        for i in 0..m.len() {
-            if self.cw.get_char(point) == Some(BLOCK) {
-                let range = self.cw.get_char(point - odp).into_iter()
-                    .chain(Some(m[i]).into_iter())
-                    .chain(self.cw.get_char(point + odp).into_iter());
+        let mut point = m.point;
+        for i in 0..m.word.len() {
+            if self.cw.get_char(m.point) == Some(BLOCK) {
+                let range = self.cw.get_char(m.point - odp).into_iter()
+                    .chain(Some(m.word[i]).into_iter())
+                    .chain(self.cw.get_char(m.point + odp).into_iter());
                 eval += self.dict.estimate_matches(range);
             }
             point = point + dp;
         }
+        let range = Range { point: m.point, dir: m.dir, len: m.word.len() };
+        eval += range_connectedness(&self.cw, &range);
         (100000_f32 * eval) as u64
     }
 
-    fn sort_matches(&self, matches: Vec<Vec<char>>, point: Point, dir: Dir) -> Vec<Vec<char>> {
+    fn sort_matches(&self, matches: Vec<Match>) -> Vec<Match> {
         let mut evaluated: Vec<_> =
-            matches.into_iter().map(|m| (m.clone(), self.eval_match(&m, point, dir))).collect();
+            matches.into_iter().map(|m| {
+                let e = self.eval_match(&m);
+                (m, e)
+            }).collect();
         evaluated.sort_by(|&(_, ref e0), &(_, ref e1)| e1.cmp(e0));
         evaluated.into_iter().map(|(m, _)| m).collect()
     }
@@ -83,24 +97,49 @@ impl<T: Rng> Author<T> {
     fn improve_cw(&mut self) {
         if let Some(range) = self.choose_range() {
             let (point, dir) = (range.point, range.dir);
-            let matches = self.sort_matches(
-                self.dict.get_matches(&self.cw.chars(range).collect(), 100), point, dir);
+            let ms = self.dict.get_matches(&self.cw.chars(range).collect(), 100).into_iter().map(|word|
+                Match { word: word, point: point, dir: dir }).collect();
+            let matches = self.sort_matches(ms);
             if matches.is_empty() {
                 self.remove_word();
             } else {
-                for word in matches.into_iter() {
-                    if self.cw.try_word(point, dir, &word) {
+                for m in matches.into_iter() {
+                    if self.cw.try_word(m.point, m.dir, &m.word) {
                         break;
                     }
                 }
             }
         } else {
-            self.finalize_cw();
             self.remove_word();
+            self.finalize_cw();
+        }
+    }
+
+    fn insert_favorites(&mut self) {
+        self.rng.shuffle(&mut self.favorites);
+        for word in self.favorites.iter() {
+            let mut matches = Vec::new();
+            for x in 0..(self.cw.get_width() as i32) {
+                for y in 0..(self.cw.get_height() as i32) {
+                    let point = Point::new(x, y);
+                    if self.cw.is_word_allowed(point, Dir::Right, word) {
+                        matches.push(Match { word: word.clone(), point: point, dir: Dir::Right });
+                    }
+                    if self.cw.is_word_allowed(point, Dir::Down, word) {
+                        matches.push(Match { word: word.clone(), point: point, dir: Dir::Down });
+                    }
+                }
+            }
+            for m in self.sort_matches(matches).into_iter() {
+                if self.cw.try_word(m.point, m.dir, &m.word) {
+                    break;
+                }
+            }
         }
     }
 
     pub fn create_cw(&mut self) {
+        self.insert_favorites();
         for _ in 0..1000 {
             self.improve_cw();
         }

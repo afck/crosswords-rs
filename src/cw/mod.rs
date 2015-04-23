@@ -1,6 +1,6 @@
 mod iter;
 
-pub use cw::iter::PrintItem;
+pub use cw::iter::{PointIter, PrintItem};
 pub use point::Point;
 
 use std::collections::HashSet;
@@ -8,7 +8,7 @@ use std::iter::{repeat, Zip};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::slice;
-use cw::iter::{PointIter, PrintIter, RangeIter, RangesIter};
+use cw::iter::{PrintIter, RangeIter, RangesIter};
 
 pub const BLOCK: char = '\u{2588}';
 
