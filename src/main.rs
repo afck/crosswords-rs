@@ -1,6 +1,6 @@
 extern crate crosswords_rs;
 
-use crosswords_rs::{Crosswords, generate_crosswords, PrintItem};
+use crosswords_rs::{Crosswords, Dir, generate_crosswords, Point, PrintItem};
 use std::ascii::AsciiExt;
 use std::collections::BTreeSet;
 use std::fs::File;
@@ -49,25 +49,60 @@ const CELL_SIZE: &'static str = "width = 30 height = 30";
 const SOLUTION_ATTR: &'static str = "class=solution align=center";
 const HINT_ATTR: &'static str = "valign=top class=hints";
 
+fn string_for(item: PrintItem) -> String {
+    match item {
+        PrintItem::VertBorder(b) | PrintItem::HorizBorder(b) | PrintItem::Cross(b) =>
+            format!("<td {} {}></td>\n", if b { BORDER_COL } else { LINE_COL }, LINE_SIZE),
+        PrintItem::Block => 
+            format!("<td {} {}></td>\n", CELL_SIZE, BLOCK_COL),
+        PrintItem::Character(c) =>
+            format!("<td {} {}>{}</td>\n", SOLUTION_ATTR, CELL_SIZE, c.to_string()),
+        PrintItem::Hint(n) =>
+            format!("<td {} {}>{}</td>\n", CELL_SIZE, HINT_ATTR, n.to_string()),
+        PrintItem::LineBreak => "</tr>\n<tr>".to_string(),
+    }
+}
+
+fn write_hints<T: Write>(writer: &mut T, cw: &Crosswords, dir: Dir) -> Result<()> {
+    try!(writeln!(writer, "<p><br><b>{}:</b>&nbsp;", match dir {
+        Dir::Right => "Horiz",
+        Dir::Down => "Vert",
+    }));
+    let mut hint_count = 0;
+    for y in 0..cw.get_height() {
+        for x in 0..cw.get_width() {
+            let p = Point::new(x as i32, y as i32);
+            if cw.has_hint_at(p) { hint_count += 1; }
+            if cw.has_hint_at_dir(p, dir) {
+                let word: String = cw.chars_at(p, dir).collect();
+                try!(write!(writer, "<b>{}.</b> [{}] &nbsp;", hint_count, word));
+            }
+        }
+    }
+    try!(writeln!(writer, "</p>"));
+    Ok(())
+}
+
+fn write_grid<T: Write, I: Iterator<Item = PrintItem>>(writer: &mut T, items: I) -> Result<()> {
+    try!(writer.write_all(TABLE_START.as_bytes()));
+    for item in items {
+        try!(writer.write_all(&string_for(item).as_bytes()))
+    }
+    try!(writer.write_all(TABLE_END.as_bytes()));
+    Ok(())
+}
+
 fn write_html(cw: Crosswords) -> Result<()> {
     let file = try!(File::create("cw.html"));
     let mut writer = BufWriter::new(file);
     try!(writer.write_all(HTML_START.as_bytes()));
-    try!(writer.write_all(TABLE_START.as_bytes()));
-    for item in cw.print_items_solution() {
-        try!(writer.write_all(&match item {
-            PrintItem::VertBorder(b) | PrintItem::HorizBorder(b) | PrintItem::Cross(b) =>
-                format!("<td {} {}></td>\n", if b { BORDER_COL } else { LINE_COL }, LINE_SIZE),
-            PrintItem::Block => 
-                format!("<td {} {}></td>\n", CELL_SIZE, BLOCK_COL),
-            PrintItem::Character(c) =>
-                format!("<td {} {}>{}</td>\n", SOLUTION_ATTR, CELL_SIZE, c.to_string()),
-            PrintItem::Number(n) =>
-                format!("<td {} {}>{}</td>\n", CELL_SIZE, HINT_ATTR, n.to_string()),
-            PrintItem::LineBreak => "</tr>\n<tr>".to_string(),
-        }.as_bytes()))
-    }
-    try!(writer.write_all(TABLE_END.as_bytes()));
+    try!(write!(writer, "<table border=0 cellspacing=0 cellpadding=30><tr><td>\n\n"));
+    try!(write_grid(&mut writer, cw.print_items_solution()));
+    try!(write!(writer, "</td><td>\n\n"));
+    try!(write_grid(&mut writer, cw.print_items_puzzle()));
+    try!(writeln!(writer, "</td></tr></table>"));
+    try!(write_hints(&mut writer, &cw, Dir::Right));
+    try!(write_hints(&mut writer, &cw, Dir::Down));
     try!(writer.write_all(HTML_END.as_bytes()));
     Ok(())
 }
@@ -75,5 +110,5 @@ fn write_html(cw: Crosswords) -> Result<()> {
 fn main() {
     let dict = load_dict("dict/top10000de.txt").unwrap();
     println!("{} words", dict.len());
-    write_html(generate_crosswords(&dict, 20, 10)).unwrap();
+    write_html(generate_crosswords(&dict, 19, 12)).unwrap();
 }

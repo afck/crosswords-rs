@@ -2,26 +2,45 @@ use cw::{BLOCK, Crosswords, Dir, Range};
 use point::Point;
 
 pub struct RangeIter<'a> {
-    range: Range,
+    pi: PointIter,
     cw: &'a Crosswords,
 }
 
 impl<'a> RangeIter<'a> {
     pub fn new(range: Range, cw: &'a Crosswords) -> RangeIter<'a> {
-        RangeIter { range: range, cw: cw }
+        RangeIter { pi: range.points(), cw: cw }
     }
 }
 
 impl<'a> Iterator for RangeIter<'a> {
     type Item = char;
     fn next(&mut self) -> Option<char> {
-        if self.range.len == 0 {
+        self.pi.next().and_then(|point| self.cw.get_char(point))
+    }
+}
+
+pub struct PointIter {
+    point: Point,
+    dp: Point,
+    len: usize,
+}
+
+impl PointIter {
+    pub fn new(point: Point, dir: Dir, len: usize) -> PointIter {
+        PointIter { point: point, dp: dir.point(), len: len }
+    }
+}
+
+impl Iterator for PointIter {
+    type Item = Point;
+    fn next(&mut self) -> Option<Point> {
+        if self.len == 0 {
             None
         } else {
-            let point = self.range.point;
-            self.range.point = self.range.point + self.range.dir.point();
-            self.range.len -= 1;
-            self.cw.get_char(point)
+            let point = self.point;
+            self.point = self.point + self.dp;
+            self.len -= 1;
+            Some(point)
         }
     }
 }
@@ -85,13 +104,12 @@ impl<'a> Iterator for RangesIter<'a> {
     type Item = Range;
     fn next(&mut self) -> Option<Range> {
         while !self.ended {
-            let len = match self.ri_type {
-                RangesIterType::Word => self.cw.get_word_len_at(self.point, self.dir),
+            let range = match self.ri_type {
+                RangesIterType::Word => self.cw.get_word_range_at(self.point, self.dir),
                 RangesIterType::Free => self.cw.get_free_range_at(self.point, self.dir),
             };
-            if len > 1 {
-                let range = Range { point: self.point, dir: self.dir, len: len };
-                self.advance(len); // TODO: If RIT::Free, advance len + 2?
+            if range.len > 1 {
+                self.advance(range.len); // TODO: If RIT::Free, advance len + 2?
                 return Some(range);
             }
             self.advance(1);
@@ -111,7 +129,7 @@ pub enum PrintItem {
     Cross(bool),
     Block,
     Character(char),
-    Number(u32),
+    Hint(u32),
     LineBreak,
 }
 
@@ -121,6 +139,7 @@ pub struct PrintIter<'a> {
     between_chars: bool,
     cw: &'a Crosswords,
     pi_type: PrintIterType,
+    hint_count: u32,
 }
 
 impl<'a> PrintIter<'a> {
@@ -131,10 +150,13 @@ impl<'a> PrintIter<'a> {
             between_chars: true,
             cw: cw,
             pi_type: pi_type,
+            hint_count: 0,
         }
     }
 
     pub fn new_solution(cw: &'a Crosswords) -> Self { PrintIter::new(cw, PrintIterType::Solution) }
+
+    pub fn new_puzzle(cw: &'a Crosswords) -> Self { PrintIter::new(cw, PrintIterType::Puzzle) }
 }
 
 impl<'a> Iterator for PrintIter<'a> {
@@ -171,7 +193,17 @@ impl<'a> Iterator for PrintIter<'a> {
             } else {
                 result = match self.cw.get_char(self.point).unwrap() {
                     BLOCK => PrintItem::Block,
-                    c => PrintItem::Character(c),
+                    c => match self.pi_type {
+                        PrintIterType::Solution => PrintItem::Character(c),
+                        PrintIterType::Puzzle => {
+                            if self.cw.has_hint_at(self.point) {
+                                self.hint_count += 1;
+                                PrintItem::Hint(self.hint_count)
+                            } else {
+                                PrintItem::Character(' ')
+                            }
+                        }
+                    },
                 };
             }
             self.between_chars = true;

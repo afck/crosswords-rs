@@ -1,13 +1,14 @@
 mod iter;
 
 pub use cw::iter::PrintItem;
+pub use point::Point;
 
-use point::Point;
 use std::collections::HashSet;
-use std::iter::repeat;
+use std::iter::{repeat, Zip};
 use std::fmt;
-use std::fmt::{Debug, Formatter};
-use cw::iter::{PrintIter, RangeIter, RangesIter};
+use std::fmt::{Display, Formatter};
+use std::slice;
+use cw::iter::{PointIter, PrintIter, RangeIter, RangesIter};
 
 pub const BLOCK: char = '\u{2588}';
 
@@ -16,6 +17,23 @@ pub struct Range {
     pub point: Point,
     pub dir: Dir,
     pub len: usize,
+}
+
+impl Range {
+    pub fn cells_with<F>(point: Point, dir: Dir, mut f: F) -> Range where F: FnMut(Point) -> bool {
+        let dp = dir.point();
+        let mut p = point;
+        let mut len = 0;
+        while f(p) {
+            len += 1;
+            p = p + dp;
+        }
+        Range { point: point, dir: dir, len: len }
+    }
+
+    pub fn points(&self) -> PointIter {
+        PointIter::new(self.point, self.dir, self.len)
+    }
 }
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
@@ -40,6 +58,12 @@ impl Dir {
     }
 }
 
+fn word_iter<'a>(word: &'a Vec<char>, point: Point, dir: Dir)
+        -> Zip<slice::Iter<'a, char>, PointIter> {
+    word.iter().zip(PointIter::new(point, dir, word.len()))
+}
+
+/// A crosswords grid that keeps track of the words it contains and doesn't allow duplicates.
 #[derive(Clone)]
 pub struct Crosswords {
     width: usize,
@@ -62,7 +86,10 @@ impl Crosswords {
         }
     }
 
+    #[inline]
     pub fn get_width(&self) -> usize { self.width }
+
+    #[inline]
     pub fn get_height(&self) -> usize { self.height }
 
     #[inline]
@@ -112,12 +139,19 @@ impl Crosswords {
         }
     }
 
+    #[inline]
     pub fn get_char(&self, point: Point) -> Option<char> {
-        point.coord(self.width, self.height).map(|p| self.chars[p])
+        point.coord(self.width, self.height).and_then(|p| self.chars.get(p).cloned())
     }
 
-    pub fn chars<'a>(&'a self, range: Range) -> RangeIter<'a> {
-        RangeIter::new(range, &self)
+    pub fn chars<'a>(&'a self, range: Range) -> RangeIter<'a> { RangeIter::new(range, &self) }
+
+    pub fn chars_at<'a>(&'a self, point: Point, dir: Dir) -> RangeIter<'a> {
+        self.chars(self.get_word_range_at(point, dir))
+    }
+
+    pub fn word_at(&self, point: Point, dir: Dir) -> Vec<char> {
+        self.chars_at(point, dir).collect()
     }
 
     #[inline]
@@ -131,43 +165,39 @@ impl Crosswords {
     pub fn is_word_allowed(&self, point: Point, dir: Dir, word: &Vec<char>) -> bool {
         let dp = dir.point();
         let len = word.len() as i32;
-        !self.words.contains(word) && !word.is_empty()
+        !self.words.contains(word) && len > 1
             && self.get_border(point - dp, dir)
             && self.get_border(point + dp * (len - 1), dir)
-            && word.iter().enumerate().all(|(i, &c)| self.is_char_allowed(point + dp * i, c))
+            && word_iter(word, point, dir).all(|(&c, p)| self.is_char_allowed(p, c))
     }
 
     fn push_word(&mut self, point: Point, dir: Dir, word: &Vec<char>) {
-        let dp = dir.point();
-        let len = word.len() as i32;
-        for (i, &c) in word.iter().enumerate() {
-            self.put_char(point + dp * i, c);
+        for (&c, p) in word_iter(word, point, dir) {
+            let existing = self.word_at(p, dir);
+            self.words.remove(&existing);
+            self.put_char(p, c);
         }
-        for i in 0..(len - 1) {
-            self.set_border(point + dp * i, dir, false);
+        for p in PointIter::new(point, dir, word.len() - 1) {
+            self.set_border(p, dir, false);
         }
         self.words.insert(word.clone());
     }
 
-    pub fn pop_word(&mut self, mut point: Point, dir: Dir) -> Option<Vec<char>> {
-        let dp = dir.point();
-        if self.get_border(point, dir) || !self.get_border(point - dp, dir) {
-            return None;
+    pub fn pop_word(&mut self, point: Point, dir: Dir) -> Vec<char> {
+        let word: Vec<_> = self.word_at(point, dir);
+        if word.len() <= 1 {
+            return Vec::new();
         }
         let odir = dir.other();
         let odp = odir.point();
-        let mut word = Vec::new();
-        while let Some(p) = point.coord(self.width, self.height) {
-            if self.get_border(point, odir) && self.get_border(point - odp, odir) {
-                word.push(self.put_char(point, BLOCK));
-            } else {
-                word.push(self.chars[p]);
+        for p in PointIter::new(point, dir, word.len()) {
+            self.set_border(p, dir, true);
+            if self.get_border(p, odir) && self.get_border(p - odp, odir) {
+                self.put_char(p, BLOCK);
             }
-            if self.set_border(point, dir, true) { break; }
-            point = point + dp;
         }
         self.words.remove(&word);
-        Some(word)
+        word
     }
 
     pub fn try_word(&mut self, point: Point, dir: Dir, word: &Vec<char>) -> bool {
@@ -181,31 +211,33 @@ impl Crosswords {
 
     pub fn free_ranges<'a>(&'a self) -> RangesIter<'a> { RangesIter::new_free(&self) }
 
-    pub fn get_free_range_at(&self, mut point: Point, dir: Dir) -> usize {
+    fn contains(&self, point: Point) -> bool {
+        point.x >= 0 && point.y >= 0 && point.x < self.width as i32 && point.y < self.height as i32
+    }
+
+    pub fn get_free_range_at(&self, point: Point, dir: Dir) -> Range {
         let dp = dir.point();
-        let mut len = 0;
-        if (point - dp).coord(self.width, self.height).is_none()
-                || (self.get_border(point - dp, dir) && !self.get_border(point - dp * 2, dir)) {
-            while point.coord(self.width, self.height).is_some() && self.get_border(point, dir) {
-                len += 1;
-                point = point + dp;
-            }
+        let after_word = self.get_border(point - dp, dir) && !self.get_border(point - dp * 2, dir);
+        if after_word || !self.contains(point - dp) {
+            Range::cells_with(point, dir, |p| self.contains(p) && self.get_border(p, dir))
+        } else {
+            Range { point: point, dir: dir, len: 0 }
         }
-        len
     }
 
     pub fn words<'a>(&'a self) -> RangesIter<'a> { RangesIter::new_words(&self) }
 
-    pub fn get_word_len_at(&self, mut point: Point, dir: Dir) -> usize {
+    pub fn get_word_range_at(&self, point: Point, dir: Dir) -> Range {
         let dp = dir.point();
-        if self.get_border(point - dp, dir) {
-            let mut len = 1;
-            while !self.get_border(point, dir) {
-                len += 1;
-                point = point + dp;
-            }
-            len
-        } else { 0 }
+        Range::cells_with(point, dir, |p| (p == point) == self.get_border(p - dp, dir))
+    }
+
+    pub fn has_hint_at_dir(&self, point: Point, dir: Dir) -> bool {
+        !self.get_border(point, dir) && self.get_border(point - dir.point(), dir)
+    }
+
+    pub fn has_hint_at(&self, point: Point) -> bool {
+        self.has_hint_at_dir(point, Dir::Right) || self.has_hint_at_dir(point, Dir::Down)
     }
 
     fn count_borders(&self) -> usize {
@@ -220,21 +252,55 @@ impl Crosswords {
     }
 
     pub fn print_items_solution<'a>(&'a self) -> PrintIter<'a> { PrintIter::new_solution(&self) }
+
+    pub fn print_items_puzzle<'a>(&'a self) -> PrintIter<'a> { PrintIter::new_puzzle(&self) }
 }
 
-impl Debug for Crosswords {
+impl Display for Crosswords {
     fn fmt(&self, formatter: &mut Formatter) -> Result<(), fmt::Error> {
+        {
+            let bc = self.count_borders();
+            let bt = 2 * self.width * self.height - self.width - self.height;
+            let br = 100_f32 * (bc as f32) / (bt as f32);
+            try!(formatter.write_fmt(format_args!("{} / {} borders ({}%)\n", bc, bt, br)));
+        }
         for item in self.print_items_solution() {
             try!(formatter.write_str(&match item {
                 PrintItem::VertBorder(true) => '|',
                 PrintItem::HorizBorder(true) => '\u{2014}',
-                PrintItem::Cross(_) | PrintItem::VertBorder(false) | PrintItem::HorizBorder(false) => ' ',
+                PrintItem::Cross(_) | PrintItem::VertBorder(false) | PrintItem::HorizBorder(false)
+                    => ' ',
                 PrintItem::Block => BLOCK,
                 PrintItem::Character(c) => c,
-                PrintItem::Number(_) => ' ',
+                PrintItem::Hint(_) => '\'',
                 PrintItem::LineBreak => '\n',
             }.to_string()[..]))
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_put_word() {
+        let mut cw = Crosswords::new(6, 2);
+        let p00 = Point::new(0, 0);
+        let p01 = Point::new(0, 1);
+        let p30 = Point::new(3, 0);
+        // Words are too long:
+        assert_eq!(false, cw.try_word(p00, Dir::Down, &"FOO".chars().collect()));
+        assert_eq!(false, cw.try_word(p00, Dir::Right, &"FOOBARBAZ".chars().collect()));
+        // BAR fits horizontally, but cannot be duplicated.
+        assert_eq!(true, cw.try_word(p00, Dir::Right, &"BAR".chars().collect()));
+        assert_eq!(false, cw.try_word(p01, Dir::Right, &"BAR".chars().collect()));
+        assert_eq!("BAR".to_string(), cw.chars_at(p00, Dir::Right).collect::<String>());
+        assert_eq!(true, cw.try_word(p30, Dir::Right, &"BAZ".chars().collect()));
+        // BARBAZ is also a word. Combine BAR and BAZ, so that they are free again:
+        assert_eq!(true, cw.try_word(p00, Dir::Right, &"BARBAZ".chars().collect()));
+        assert_eq!(true, cw.try_word(p01, Dir::Right, &"BAR".chars().collect()));
+        assert_eq!(true, cw.try_word(p00, Dir::Down, &"BB".chars().collect()));
     }
 }
