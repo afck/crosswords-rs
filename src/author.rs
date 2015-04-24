@@ -3,6 +3,8 @@ use dict::Dict;
 use point::Point;
 use rand::Rng;
 use std::cmp::Ordering;
+use std::collections::HashSet;
+use std::slice;
 
 // TODO
 //
@@ -38,6 +40,146 @@ use std::cmp::Ordering;
 // * Percentage of borders.
 // * Number of favorites. (Weighted by length?)
 // * Minimum/average percentage of letters per word that don't belong to a crossing word.
+
+struct WordRangeIter<'a> {
+    ranges: Vec<Range>,
+    range_i: usize,
+    dicts: &'a Vec<Dict>,
+    dict_i: usize,
+    word_i: usize,
+}
+
+impl<'a> WordRangeIter<'a> {
+    fn new(ranges: Vec<Range>, dicts: &'a Vec<Dict>) -> WordRangeIter<'a> {
+        WordRangeIter {
+            ranges: ranges,
+            range_i: 0,
+            dicts: dicts,
+            dict_i: 0,
+            word_i: 0,
+        }
+    }
+
+    #[inline]
+    fn get_word(&self) -> Option<Vec<char>> {
+        let range = match self.ranges.get(self.range_i) {
+            None => return None,
+            Some(r) => r,
+        };
+        self.dicts.get(self.dict_i).and_then(|dict| dict.get_word(range.len, self.word_i))
+    }
+
+    fn advance(&mut self) {
+        self.word_i += 1;
+        while self.dict_i < self.dicts.len() && self.get_word().is_none() {
+            self.word_i = 0;
+            self.range_i += 1;
+            while self.range_i < self.ranges.len() && self.get_word().is_none() {
+                self.range_i += 1;
+            }
+            if self.range_i < self.ranges.len() {
+                self.range_i = 0;
+                self.dict_i += 1;
+            }
+        }
+    }
+
+    fn next(&mut self) -> Option<(Range, Vec<char>)> {
+        let word = self.get_word();
+        if word.is_some() {
+            self.advance();
+        }
+        word.map(|w| (self.ranges[self.range_i], w))
+    }
+
+    fn into_ranges(self) -> Vec<Range> {
+        self.ranges
+    }
+}
+
+pub struct NewAuthor {
+    min_crossing: usize,
+    dicts: Vec<Dict>,
+}
+
+impl NewAuthor {
+    pub fn new(words: &Vec<HashSet<String>>) -> NewAuthor {
+        NewAuthor {
+            min_crossing: 1,
+            dicts: words.iter().map(|s| Dict::new(s.iter().cloned())).collect(),
+        }
+    }
+
+    fn get_ranges(&self, cw: &Crosswords/*, freqs: &NGramFrequencies*/) -> Option<Vec<Range>> {
+        let mut ranges = Vec::new();
+        if cw.is_empty() {
+            let point = Point::new(0, 0);
+            ranges.extend((2..cw.get_width()).map(|len| Range {
+                point: point,
+                dir: Dir::Right,
+                len: len,
+            }));
+            ranges.extend((2..cw.get_height()).map(|len| Range {
+                point: point,
+                dir: Dir::Down,
+                len: len,
+            }));
+            // No words? Start in the top left corner.
+        } else {
+            // Words crossing < min_cross others? Go through them.
+            // Optional: Words crossing < min_cross_percent % others? Go through their letters.
+        }
+        // Optional: Constrained empty cells?
+        // None of these? If there are empty cells left, go through the boundary of the filled space.
+        if ranges.is_empty() {
+            // Puzzle complete? Return None
+            None
+        } else {
+            // TODO: Better sorting - most favorable ranges first.
+            ranges.sort_by(|r0, r1| r1.len.cmp(&r0.len));
+            Some(ranges)
+        }
+    }
+
+    pub fn complete_cw<F, T>(&self, init_cw: &Crosswords, eval: F, rng: &mut T)
+            -> Crosswords where F: Fn(&Crosswords) -> i32, T: Rng {
+        // TODO: let freqs = get_n_gram_frequencies(dicts);
+        let mut cw = init_cw.clone();
+        // TODO: Don't stop at success: Backtrack and compare with other solutions.
+        //let (mut best_cw, mut best_score = (None, i32::MIN));
+        let mut stack = Vec::new();
+        let mut iter = match self.get_ranges(&cw/*, &freqs*/) {
+            Some(ranges) => WordRangeIter::new(ranges, &self.dicts),
+            None => return cw,
+        };
+        'main: loop {
+            if let Some((range, word)) = iter.next() {
+                if cw.try_word(range.point, range.dir, &word) {
+                    stack.push((range, iter));
+                    if let Some(ranges) = self.get_ranges(&cw/*, &freqs*/) {
+                        iter = WordRangeIter::new(ranges, &self.dicts);
+                    } else {
+                        return cw;
+                    }
+                }
+            } else {
+                let ranges = iter.into_ranges();
+                while let Some((range, prev_iter)) = stack.pop() {
+                    iter = prev_iter;
+                    let word = cw.pop_word(range.point, range.dir);
+                    if ranges.iter().any(|r| range.intersects(r)) {
+                        continue 'main;
+                    }
+                }
+                // Went all up the stack but found nothing? Give up.
+                return cw;
+            }
+            // If time's up, break.
+        }
+    }
+}
+
+// TODO: Remove old implementation:
 
 fn choose_lowest<S: Copy, SI: Iterator<Item = (S, f32)>, T: Rng>(rng: &mut T, si: SI) -> Option<S> {
     let mut est: Vec<(S, f32)> = si.collect();

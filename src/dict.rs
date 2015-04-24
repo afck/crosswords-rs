@@ -1,9 +1,9 @@
 use cw::BLOCK;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::iter;
 
 pub struct Dict {
-    words: Vec<BTreeSet<Vec<char>>>,
+    words: Vec<Vec<Vec<char>>>,
     ngram_freq: HashMap<Vec<char>, f32>,
     ngram_n: usize,
 }
@@ -17,15 +17,15 @@ impl Dict {
         for string_word in all_words {
             let word: Vec<char> = string_word.chars().collect();
             while words.len() < word.len() + 1 {
-                words.push(BTreeSet::new());
+                words.push(Vec::new());
             }
-            if words[word.len()].insert(word.clone()) {
-                for i in 0..ngram_n {
-                    for ng in word.windows(i + 1) {
-                        ng_total[i] += 1;
-                        let old_count = *ng_count[i].get(&ng.to_vec()).unwrap_or(&0);
-                        ng_count[i].insert(ng.to_vec(), old_count + 1);
-                    }
+            words[word.len()].push(word.clone());
+            // TODO: Make sure words are unique
+            for i in 0..ngram_n {
+                for ng in word.windows(i + 1) {
+                    ng_total[i] += 1;
+                    let old_count = *ng_count[i].get(&ng.to_vec()).unwrap_or(&0);
+                    ng_count[i].insert(ng.to_vec(), old_count + 1);
                 }
             }
         }
@@ -40,6 +40,10 @@ impl Dict {
             ngram_freq: ngram_freq,
             ngram_n: ngram_n,
         }
+    }
+
+    pub fn get_word(&self, len: usize, n: usize) -> Option<Vec<char>> {
+        self.words.get(len).and_then(|w| w.get(n)).cloned()
     }
 
     pub fn matches(word: &Vec<char>, pattern: &Vec<char>) -> bool {

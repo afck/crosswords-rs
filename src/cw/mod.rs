@@ -34,6 +34,12 @@ impl Range {
     pub fn points(&self) -> PointIter {
         PointIter::new(self.point, self.dir, self.len)
     }
+
+    pub fn intersects(&self, other: &Range) -> bool {
+        let (s0, s1) = (self.point, self.point + self.dir.point() * self.len);
+        let (o0, o1) = (other.point, other.point + other.dir.point() * other.len);
+        s0.x < o1.x && o0.x < s1.x && s0.y < o1.y && o0.y < s1.y
+    }
 }
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
@@ -239,6 +245,8 @@ impl Crosswords {
     pub fn has_hint_at(&self, point: Point) -> bool {
         self.has_hint_at_dir(point, Dir::Right) || self.has_hint_at_dir(point, Dir::Down)
     }
+
+    pub fn is_empty(&self) -> bool { self.words.is_empty() }
 
     fn count_borders(&self) -> usize {
         let mut count = 0;

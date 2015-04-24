@@ -7,7 +7,7 @@ mod dict;
 
 pub use cw::{Crosswords, Dir, Point, PrintItem, Range};
 
-use author::Author;
+use author::{Author, NewAuthor};
 use dict::Dict;
 use std::collections::{BTreeSet, HashSet};
 
@@ -35,8 +35,13 @@ fn evaluate(cw: &Crosswords, fav_set: HashSet<Vec<char>>) -> i32 {
 
 pub fn generate_crosswords(words: &BTreeSet<String>, favorites: &BTreeSet<String>,
                            width: usize, height: usize) -> Crosswords {
-    let fav_set = favorites.iter().map(|s| s.chars().collect()).collect();
+    let fav_set: HashSet<_> = favorites.iter().map(|s| s.chars().collect()).collect();
     let fav_vec = favorites.iter().map(|s| s.chars().collect()).collect();
+    let new_author = NewAuthor::new(&vec!(words.iter().cloned().collect()));
+    let cw = new_author.complete_cw(&Crosswords::new(width, height), |cw| 0, &mut rand::thread_rng());
+    println!("Score: {}", evaluate(&cw, fav_set.clone()));
+    println!("{}", cw);
+
     let mut author = Author::new(Crosswords::new(width, height), Dict::new(words.iter().cloned()),
                                  fav_vec, rand::thread_rng());
     author.create_cw();
