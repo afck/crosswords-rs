@@ -4,6 +4,41 @@ use point::Point;
 use rand::Rng;
 use std::cmp::Ordering;
 
+// TODO
+//
+// 3 stages?
+// (1) Favorite words (empty cells allowed)
+// (2) Fill in the rest from the dictionary
+// (3) Finalize: Put every word that's still possible
+//
+// Functionality (mainly for 2):
+// (a) Find sets of ranges one of which must be filled:
+//      * Each word crosses N (2?) others?
+//      * > N% (30%?) of each word's characters cross other word.
+//      * No cell can remain empty.
+// (b) Choose the most restrictive set of ranges:
+//      * Lowest estimate of matching words.
+// (c) Iterate over all possible words and recursively complete the crosswords
+//      * Start with the most favorable ranges and the favorite words.
+//      * (Optional: Always compare 10 options and choose the most promising one, e. g. by highest
+//                   estimate of possible crossing words.)
+// (d) If no words are possible, backtrack:
+//      * Remove the latest words, up to the latest one intersecting the impossible ranges.
+//      * (Optional: Go even further if it's easy to determine that that won't help yet.)
+//      * (Optional: Keep the current state - in case of failure, return the "best" failure.)
+//
+// Evaluation for ranges:
+// * Must contain a letter, i. e. cross another word, to ensure connectedness.
+// * Long ranges are preferable.
+// * Crossing many words is a plus.
+//
+// Evaluation for complete result:
+// * Must be connected.
+// * No (few?) empty cells.
+// * Percentage of borders.
+// * Number of favorites. (Weighted by length?)
+// * Minimum/average percentage of letters per word that don't belong to a crossing word.
+
 fn choose_lowest<S: Copy, SI: Iterator<Item = (S, f32)>, T: Rng>(rng: &mut T, si: SI) -> Option<S> {
     let mut est: Vec<(S, f32)> = si.collect();
     if est.is_empty() { return None; }
