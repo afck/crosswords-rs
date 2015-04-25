@@ -1,7 +1,8 @@
 use cw::BLOCK;
 use rand;
 use rand::Rng;
-use std::collections::HashMap;
+use std::ascii::AsciiExt;
+use std::collections::{HashMap, HashSet};
 use std::iter;
 
 pub struct Dict {
@@ -11,18 +12,17 @@ pub struct Dict {
 }
 
 impl Dict {
-    pub fn new<T: Iterator<Item = String>>(all_words: T) -> Dict {
+    pub fn new(all_string_words: &HashSet<String>) -> Dict {
         let mut words = Vec::new();
         let ngram_n = 3;
         let mut ng_total: Vec<_> = iter::repeat(0).take(ngram_n).collect();
         let mut ng_count: Vec<_> = (0..ngram_n).map(|_| HashMap::new()).collect();
-        for string_word in all_words {
-            let word: Vec<char> = string_word.chars().collect();
+        let all_words: HashSet<Vec<char>> = all_string_words.iter().filter_map(|string_word|
+            Dict::normalize_word(string_word)).collect();
+        for word in all_words {
             while words.len() < word.len() + 1 {
                 words.push(Vec::new());
             }
-            words[word.len()].push(word.clone());
-            // TODO: Make sure words are unique
             for i in 0..ngram_n {
                 for ng in word.windows(i + 1) {
                     ng_total[i] += 1;
@@ -30,6 +30,7 @@ impl Dict {
                     ng_count[i].insert(ng.to_vec(), old_count + 1);
                 }
             }
+            words[word.len()].push(word);
         }
         let mut ngram_freq = HashMap::new();
         for i in 0..ngram_n {
@@ -45,6 +46,23 @@ impl Dict {
             words: words,
             ngram_freq: ngram_freq,
             ngram_n: ngram_n,
+        }
+    }
+
+    fn normalize_word(string_word: &String) -> Option<Vec<char>> {
+        // TODO: Use to_uppercase() once it's stable.
+        let word: Vec<char> = string_word.to_ascii_uppercase().trim()
+                       .replace("ä", "AE")
+                       .replace("Ä", "AE")
+                       .replace("ö", "OE")
+                       .replace("Ö", "OE")
+                       .replace("ü", "UE")
+                       .replace("Ü", "UE")
+                       .replace("ß", "SS").chars().collect();
+        if word.iter().all(|&c| c.is_alphabetic() && c.is_ascii()) && word.len() > 1 {
+            Some(word)
+        } else {
+            None
         }
     }
 

@@ -166,7 +166,7 @@ impl Author {
             min_crossing: 3,
             //min_crossing_rel: 1.0,
             min_crossing_rel: 0.2,
-            dicts: words.iter().map(|s| Dict::new(s.iter().cloned())).collect(),
+            dicts: words.iter().map(|s| Dict::new(s)).collect(),
         }
     }
 
