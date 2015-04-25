@@ -2,14 +2,14 @@ extern crate crosswords_rs;
 
 use crosswords_rs::{Crosswords, Dir, generate_crosswords, Point, PrintItem};
 use std::ascii::AsciiExt;
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Result, Write};
 
-fn load_dict(filename: &str) -> Result<BTreeSet<String>> {
+fn load_dict(filename: &str) -> Result<HashSet<String>> {
     let file = try!(File::open(filename));
     let reader = BufReader::new(file);
-    let mut dict = BTreeSet::new();
+    let mut dict = HashSet::new();
     for line in reader.lines() {
         // TODO: Use to_uppercase() once it's stable.
         if let Ok(lword) = line {
@@ -108,8 +108,11 @@ fn write_html(cw: Crosswords) -> Result<()> {
 }
 
 fn main() {
-    let dict = load_dict("dict/top10000de.txt").unwrap();
-    let favorites = load_dict("dict/favorites.txt").unwrap();
-    println!("{} words", dict.len());
-    write_html(generate_crosswords(&dict, &favorites, 19, 12)).unwrap();
+    let words = vec!(
+        load_dict("dict/favorites.txt").unwrap(),
+        load_dict("dict/top10000de.txt").unwrap(),
+        //load_dict("dict/ngerman.txt").unwrap(),
+    );
+    write_html(generate_crosswords(&words, 21, 12)).unwrap();
+    //write_html(generate_crosswords(&words, 10, 5)).unwrap();
 }

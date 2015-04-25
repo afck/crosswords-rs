@@ -1,4 +1,6 @@
 use cw::BLOCK;
+use rand;
+use rand::Rng;
 use std::collections::HashMap;
 use std::iter;
 
@@ -34,6 +36,10 @@ impl Dict {
             let t = ng_total[i] as f32;
             ngram_freq.extend(ng_count[i].iter().map(|(ng, &c)| (ng.clone(), (c as f32) / t)));
         }
+        let mut rng = rand::thread_rng();
+        for i in 0..words.len() {
+            rng.shuffle(&mut words[i][..]);
+        }
         ngram_freq.insert(Vec::new(), 1_f32);
         Dict {
             words: words,
@@ -46,7 +52,7 @@ impl Dict {
         self.words.get(len).and_then(|w| w.get(n)).cloned()
     }
 
-    pub fn matches(word: &Vec<char>, pattern: &Vec<char>) -> bool {
+    /*pub fn matches(word: &Vec<char>, pattern: &Vec<char>) -> bool {
         word.len() <= pattern.len()
             && word.iter().zip(pattern.iter()).all(|(&cw, &cp)| cw == cp || cp == BLOCK)
     }
@@ -64,25 +70,16 @@ impl Dict {
             }
         }
         matches
-    }
+    }*/
 
-    pub fn get_matches(&self, pattern: &Vec<char>, n: usize) -> Vec<Vec<char>> {
-        let mut matches = Vec::new();
-        for i in (2..(pattern.len() + 1)).rev() {
-            let len = matches.len();
-            matches.extend(self.find_matches(&pattern[..i].to_vec(), n - len));
-            if matches.len() > n {
-                return matches;
-            }
-        }
-        matches
-    }
-
-    pub fn estimate_matches<T: Iterator<Item = char>>(&self, pattern: T) -> f32 {
+    pub fn estimate_matches(&self, pattern: Vec<char>) -> f32 {
+        let candidates = match self.words.get(pattern.len()) {
+            None => return 0_f32,
+            Some(s) => s.len() as f32,
+        };
         let mut est = 1_f32;
-        let mut candidates = 0_f32;
         let mut ng = Vec::new();
-        for (i, c) in pattern.chain(Some(BLOCK).into_iter()).enumerate() {
+        for c in pattern.into_iter().chain(Some(BLOCK).into_iter()) {
             if c == BLOCK {
                 est *= *self.ngram_freq.get(&ng).unwrap_or(&0_f32);
                 ng.clear();
@@ -92,9 +89,6 @@ impl Dict {
                     est *= *self.ngram_freq.get(&ng).unwrap_or(&0_f32);
                     ng.remove(0);
                 }
-            }
-            if let Some(s) = self.words.get(i) {
-                candidates += s.len() as f32;
             }
         }
         est * candidates

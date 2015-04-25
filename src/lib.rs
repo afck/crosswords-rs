@@ -7,9 +7,8 @@ mod dict;
 
 pub use cw::{Crosswords, Dir, Point, PrintItem, Range};
 
-use author::{Author, NewAuthor};
-use dict::Dict;
-use std::collections::{BTreeSet, HashSet};
+use author::Author;
+use std::collections::HashSet;
 
 fn evaluate_word(cw: &Crosswords, range: &Range) -> i32 {
     let mut score = range.len as i32;
@@ -22,33 +21,25 @@ fn evaluate_word(cw: &Crosswords, range: &Range) -> i32 {
     score
 }
 
-fn evaluate(cw: &Crosswords, fav_set: HashSet<Vec<char>>) -> i32 {
+fn evaluate(cw: &Crosswords, fav_set: &HashSet<String>) -> i32 {
     let mut score = 0;
     for range in cw.words() {
         score += evaluate_word(cw, &range);
-        if fav_set.contains(&cw.word_at(range.point, range.dir)) {
+        if fav_set.contains(&cw.chars(range).collect::<String>()) {
             score += 5;
         }
     }
     score
 }
 
-pub fn generate_crosswords(words: &BTreeSet<String>, favorites: &BTreeSet<String>,
-                           width: usize, height: usize) -> Crosswords {
-    let fav_set: HashSet<_> = favorites.iter().map(|s| s.chars().collect()).collect();
-    let fav_vec = favorites.iter().map(|s| s.chars().collect()).collect();
-    let new_author = NewAuthor::new(&vec!(words.iter().cloned().collect()));
-    let cw = new_author.complete_cw(&Crosswords::new(width, height), |cw| 0, &mut rand::thread_rng());
-    println!("Score: {}", evaluate(&cw, fav_set.clone()));
+pub fn generate_crosswords(words: &Vec<HashSet<String>>, width: usize, height: usize)
+        -> Crosswords {
+    let new_author = Author::new(words);
+    let cw = new_author.complete_cw(&Crosswords::new(width, height));
+    println!("Score: {}", evaluate(&cw, &words[0]));
     println!("{}", cw);
-
-    let mut author = Author::new(Crosswords::new(width, height), Dict::new(words.iter().cloned()),
-                                 fav_vec, rand::thread_rng());
-    author.create_cw();
-    println!("Score: {}", evaluate(author.get_cw(), fav_set));
-    println!("{}", author.get_cw());
     //println!("Finalizing ...");
     //author.finalize_cw();
     //println!("{:?}", author.get_cw());
-    author.get_cw().clone()
+    cw
 }

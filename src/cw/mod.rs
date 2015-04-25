@@ -12,7 +12,7 @@ use cw::iter::{PrintIter, RangeIter, RangesIter};
 
 pub const BLOCK: char = '\u{2588}';
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Range {
     pub point: Point,
     pub dir: Dir,
@@ -36,13 +36,13 @@ impl Range {
     }
 
     pub fn intersects(&self, other: &Range) -> bool {
-        let (s0, s1) = (self.point, self.point + self.dir.point() * self.len);
-        let (o0, o1) = (other.point, other.point + other.dir.point() * other.len);
-        s0.x < o1.x && o0.x < s1.x && s0.y < o1.y && o0.y < s1.y
+        let (s0, s1) = (self.point, self.point + self.dir.point() * (self.len - 1));
+        let (o0, o1) = (other.point, other.point + other.dir.point() * (other.len - 1));
+        s0.x <= o1.x && o0.x <= s1.x && s0.y <= o1.y && o0.y <= s1.y
     }
 }
 
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Dir {
     Right,
     Down,
@@ -231,6 +231,41 @@ impl Crosswords {
         }
     }
 
+    fn get_empty_cluster(&self, point: Point) -> HashSet<Point> {
+        let mut border = vec!(point);
+        let mut cluster: HashSet<Point> = Some(point).into_iter().collect();
+        while let Some(current) = border.pop() {
+            for p in current.neighbors() {
+                if !cluster.contains(&p) && self.get_char(p) == Some(BLOCK) {
+                    border.push(p);
+                    cluster.insert(p);
+                }
+            }
+        }
+        cluster
+    }
+
+    pub fn get_smallest_empty_cluster(&self) -> HashSet<Point> {
+        let mut points = HashSet::new();
+        let mut smallest = HashSet::new();
+        for x in 0..(self.width as i32) {
+            for y in 0..(self.height as i32) {
+                let point = Point::new(x, y);
+                if !points.contains(&point) && self.get_char(point) == Some(BLOCK) {
+                    let cluster = self.get_empty_cluster(point);
+                    if cluster.len() == 1 {
+                        return cluster
+                    }
+                    if points.is_empty() || cluster.len() < smallest.len() {
+                        smallest = cluster.clone();
+                    }
+                    points.extend(cluster.into_iter());
+                }
+            }
+        }
+        smallest
+    }
+
     pub fn words<'a>(&'a self) -> RangesIter<'a> { RangesIter::new_words(&self) }
 
     pub fn get_word_range_at(&self, point: Point, dir: Dir) -> Range {
@@ -248,15 +283,12 @@ impl Crosswords {
 
     pub fn is_empty(&self) -> bool { self.words.is_empty() }
 
+    pub fn is_full(&self) -> bool {
+        (0..(self.width * self.height)).all(|p| self.chars[p] != BLOCK)
+    }
+
     fn count_borders(&self) -> usize {
-        let mut count = 0;
-        for p in 0..((self.width - 1) * self.height) {
-            if self.right_border[p] { count += 1; }
-        }
-        for p in 0..(self.width * (self.height - 1)) {
-            if self.down_border[p] { count += 1; }
-        }
-        count
+        self.right_border.iter().chain(self.down_border.iter()).filter(|&&b| b).count()
     }
 
     pub fn print_items_solution<'a>(&'a self) -> PrintIter<'a> { PrintIter::new_solution(&self) }

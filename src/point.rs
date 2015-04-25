@@ -1,6 +1,6 @@
 use std::ops::{Add, Mul, Sub};
 
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Point {
     pub x: i32,
     pub y: i32,
@@ -18,6 +18,13 @@ impl Point {
         } else {
             Some((self.x as usize) + w * (self.y as usize))
         }
+    }
+
+    pub fn neighbors(&self) -> Vec<Point> {
+        vec!(Point { x: self.x, y: self.y - 1 },
+            Point { x: self.x, y: self.y + 1 },
+            Point { x: self.x - 1, y: self.y },
+            Point { x: self.x + 1, y: self.y })
     }
 }
 
