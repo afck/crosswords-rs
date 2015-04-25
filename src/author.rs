@@ -161,11 +161,11 @@ pub struct Author {
 }
 
 impl Author {
-    pub fn new(words: &Vec<HashSet<String>>) -> Author {
+    pub fn new(words: &Vec<HashSet<String>>, min_crossing: usize, min_crossing_rel: f32) -> Author {
         Author {
-            min_crossing: 3,
+            min_crossing: min_crossing,
             //min_crossing_rel: 1.0,
-            min_crossing_rel: 0.2,
+            min_crossing_rel: min_crossing_rel,
             dicts: words.iter().map(|s| Dict::new(s)).collect(),
         }
     }

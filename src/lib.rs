@@ -6,8 +6,7 @@ mod point;
 mod dict;
 
 pub use cw::{Crosswords, Dir, Point, PrintItem, Range};
-
-use author::Author;
+pub use author::Author;
 use std::collections::HashSet;
 
 fn evaluate_word(cw: &Crosswords, range: &Range) -> i32 {
@@ -21,7 +20,7 @@ fn evaluate_word(cw: &Crosswords, range: &Range) -> i32 {
     score
 }
 
-fn evaluate(cw: &Crosswords, fav_set: &HashSet<String>) -> i32 {
+pub fn evaluate(cw: &Crosswords, fav_set: &HashSet<String>) -> i32 {
     let mut score = 0;
     for range in cw.words() {
         score += evaluate_word(cw, &range);
@@ -32,14 +31,3 @@ fn evaluate(cw: &Crosswords, fav_set: &HashSet<String>) -> i32 {
     score
 }
 
-pub fn generate_crosswords(words: &Vec<HashSet<String>>, width: usize, height: usize)
-        -> Crosswords {
-    let new_author = Author::new(words);
-    let cw = new_author.complete_cw(&Crosswords::new(width, height));
-    println!("Score: {}", evaluate(&cw, &words[0]));
-    println!("{}", cw);
-    //println!("Finalizing ...");
-    //author.finalize_cw();
-    //println!("{:?}", author.get_cw());
-    cw
-}
