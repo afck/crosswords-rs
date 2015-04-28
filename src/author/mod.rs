@@ -1,6 +1,6 @@
 mod word_range_iter;
 
-use cw::{BLOCK, Crosswords, CVec, Dir, Point, Range};
+use cw::{BLOCK, Crosswords, Dir, Point, Range};
 use dict::Dict;
 use word_stats::WordStats;
 use std::cmp;
@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 use author::word_range_iter::WordRangeIter;
 
-// TODO
+// TODO (some thoughts on extending the algorithm):
 //
 // 3 stages?
 // (1) Favorite words (empty cells allowed)
@@ -47,6 +47,7 @@ use author::word_range_iter::WordRangeIter;
 #[derive(Clone, PartialEq)]
 struct RangeSet {
     ranges: HashSet<Range>,
+    backtrack_ranges: HashSet<Range>,
     est: f32, // Estimated number of words that fit in one of the ranges.
 }
 
@@ -58,23 +59,33 @@ impl PartialOrd for RangeSet {
 
 impl RangeSet {
     fn new() -> RangeSet {
-        RangeSet { ranges: HashSet::new(), est: 0_f32 }
+        RangeSet {
+            ranges: HashSet::new(),
+            backtrack_ranges: HashSet::new(),
+            est: 0_f32,
+        }
+    }
+
+    fn extend(&mut self, other: RangeSet) {
+        self.ranges.extend(other.ranges.into_iter());
+        self.backtrack_ranges.extend(other.backtrack_ranges.into_iter());
+        self.est += other.est;
     }
 
     fn union<T: Iterator<Item = RangeSet>>(itr: T) -> RangeSet {
         let mut result = RangeSet::new();
         for rs in itr {
-            result.ranges.extend(rs.ranges.iter().cloned());
-            result.est += rs.est;
+            result.extend(rs);
         }
         result
     }
 }
 
 pub struct Author {
+    dicts: Vec<Dict>,
+    cw: Crosswords,
     min_crossing: usize,
     min_crossing_rel: f32,
-    dicts: Vec<Dict>,
     stats: WordStats,
     verbose: bool,
 }
@@ -89,7 +100,11 @@ macro_rules! result_range_set {
 }
 
 impl Author {
-    pub fn new(words: &Vec<HashSet<String>>, min_crossing: usize, min_crossing_rel: f32) -> Author {
+    pub fn new(init_cw: &Crosswords,
+               words: &Vec<HashSet<String>>,
+               min_crossing: usize,
+               min_crossing_rel: f32,
+               verbose: bool) -> Author {
         let mut all_words = HashSet::new();
         for word_set in words {
             all_words.extend(word_set.iter().map(|s| s.chars().collect()));
@@ -98,44 +113,47 @@ impl Author {
             unreachable!("min_crossing_rel must be between 0 and 1");
         }
         Author {
+            dicts: words.iter().map(|s| Dict::new(s)).collect(),
+            cw: init_cw.clone(),
             // TODO: min_fav_words / max_nonfav_words ...
             //min_avg_cells_per_word: 5_f32, // TODO: Make this a command line option.
             min_crossing: min_crossing,
             min_crossing_rel: min_crossing_rel,
-            dicts: words.iter().map(|s| Dict::new(s)).collect(),
             stats: WordStats::new(3, &all_words),
-            verbose: true, // TODO: Make this a command line option.
+            verbose: verbose,
         }
     }
 
+    /// Returns the maximum number of characters of a word of the given length that don't need to
+    /// be connected to a crossing word.
     fn get_max_noncrossing(&self, len: usize) -> usize {
         let max_noncrossing = (1_f32 - self.min_crossing_rel) * (len as f32);
         cmp::min(max_noncrossing as usize, len - self.min_crossing)
     }
 
-    fn add_range(&self, cw: &Crosswords, rs: &mut RangeSet, range: Range) {
-        let dp = range.dir.point();
-        let p = range.point;
-        let is_valid = self.min_crossing_rel != 1.0
-            || !(p.x + dp.x * (range.len as i32 + 1) == cw.get_width() as i32
-            || p.y + dp.y * (range.len as i32 + 1) == cw.get_height() as i32
-            || p.x - dp.x * 2 == -1 || p.y - dp.y * 2 == -1);
-        if is_valid && rs.ranges.insert(range) {
-            rs.est += self.stats.estimate_matches(&cw.chars(range).collect());
+    fn add_range(&self, rs: &mut RangeSet, range: Range) {
+        let blocks_words = self.min_crossing_rel == 1.0
+            && (self.cw.get_range_before(range).len == 1
+                || self.cw.get_range_after(range).len == 1);
+        if !blocks_words {
+            let est = self.stats.estimate_matches(&self.cw.chars(range).collect());
+            if est != 0_f32 && rs.ranges.insert(range) {
+                rs.est += est;
+            }
         }
     }
 
-    fn get_all_ranges(&self, cw: &Crosswords, point: Point, dir: Dir) -> RangeSet {
+    /// Returns a range set containing all free ranges with the given point in the given direction.
+    /// The backtrack range extends one field past the longest of these ranges.
+    fn get_all_ranges(&self, point: Point, dir: Dir) -> RangeSet {
         let mut rs = RangeSet::new();
         let mut i = 1;
         let dp = dir.point();
-        while cw.get_border(point - dp * i, dir)
-                && (point - dp * (i - 1)).coord(cw.get_width(), cw.get_height()).is_some() {
+        while self.cw.get_border(point - dp * i, dir) && self.cw.contains(point - dp * (i - 1)) {
             let mut j = 0;
-            while cw.get_border(point + dp * j, dir)
-                    && (point + dp * j).coord(cw.get_width(), cw.get_height()).is_some() {
+            while self.cw.get_border(point + dp * j, dir) && self.cw.contains(point + dp * j) {
                 if i + j > 1 {
-                    self.add_range(cw, &mut rs, Range {
+                    self.add_range(&mut rs, Range {
                         point: point - dp * (i - 1),
                         dir: dir,
                         len: i + j,
@@ -145,28 +163,34 @@ impl Author {
             }
             i += 1;
         }
+        let max_range = self.cw.get_free_range_containing(point, dir);
+        rs.backtrack_ranges.insert(Range {
+            point: max_range.point - max_range.dir.point(),
+            dir: dir,
+            len: max_range.len + 1,
+        });
         rs
     }
 
-    fn get_word_range_set(&self, cw: &Crosswords) -> Option<RangeSet> {
+    fn get_word_range_set(&self) -> Option<RangeSet> {
         let mut result = None;
-        for range in cw.word_ranges() {
+        for range in self.cw.word_ranges() {
             let odir = range.dir.other();
             let odp = odir.point();
             let candidate_points: Vec<Point> = range.points().filter(|&p| {
-                cw.get_border(p, odir) && cw.get_border(p - odp, odir)
+                self.cw.get_border(p, odir) && self.cw.get_border(p - odp, odir)
             }).collect();
             let nc = candidate_points.len();
             let mnc = self.get_max_noncrossing(range.len);
             if nc > mnc {
                 if mnc == 0 {
                     for p in candidate_points.into_iter() {
-                        let rs = self.get_all_ranges(cw, p, odir);
+                        let rs = self.get_all_ranges(p, odir);
                         result_range_set!(result, rs);
                     }
                 } else {
                     let mut rsets = candidate_points.into_iter()
-                        .map(|p| self.get_all_ranges(cw, p, odir)).collect::<Vec<_>>();
+                        .map(|p| self.get_all_ranges(p, odir)).collect::<Vec<_>>();
                     rsets.sort_by(|rs0, rs1| rs0.partial_cmp(rs1).unwrap_or(Ordering::Equal));
                     let rs = RangeSet::union(rsets.into_iter().take(mnc + 1));
                     result_range_set!(result, rs);
@@ -176,44 +200,41 @@ impl Author {
         result
     }
 
-    fn range_score(&self, cw: &Crosswords, range: &Range) -> i32 {
-        let dp = range.dir.point();
-        let p = range.point;
-        let penalty = if p.x + dp.x * (range.len as i32 + 1) == cw.get_width() as i32
-            || p.y + dp.y * (range.len as i32 + 1) == cw.get_height() as i32
-            || p.x - dp.x * 2 == -1 || p.y - dp.y * 2 == -1 {
-          10
-        } else { 0 };
-        (cw.chars(*range).filter(|&c| c != BLOCK).count() + range.len) as i32 - penalty
+    fn range_score(&self, range: &Range) -> i32 {
+        (self.cw.chars(*range).filter(|&c| c != BLOCK).count() + range.len) as i32
     }
 
-    fn get_ranges_for_empty(&self, cw: &Crosswords) -> RangeSet {
+    fn get_ranges_for_empty(&self) -> RangeSet {
         let mut result = RangeSet::new();
         let point = Point::new(0, 0);
-        for len in (2..(1 + cw.get_width())) {
-            self.add_range(cw, &mut result, Range { point: point, dir: Dir::Right, len: len });
+        for len in (2..(1 + self.cw.get_width())) {
+            self.add_range(&mut result, Range { point: point, dir: Dir::Right, len: len });
         }
-        for len in (2..(1 + cw.get_height())) {
-            self.add_range(cw, &mut result, Range { point: point, dir: Dir::Down, len: len });
+        for len in (2..(1 + self.cw.get_height())) {
+            self.add_range(&mut result, Range { point: point, dir: Dir::Down, len: len });
         }
         result
     }
 
-    fn get_range_set(&self, cw: &Crosswords) -> Option<RangeSet> {
-        let mut result = if cw.is_empty() {
-            Some(self.get_ranges_for_empty(cw))
+    fn get_range_set(&self) -> Option<RangeSet> {
+        let mut result = if self.cw.is_empty() {
+            Some(self.get_ranges_for_empty())
         } else {
-            self.get_word_range_set(cw)
+            self.get_word_range_set()
         };
         // TODO: Avoid ranges that would isolate clusters of empty cells in the first place.
-        if result.is_none() && !cw.is_full() {
+        if result.is_none() && !self.cw.is_full() {
             let mut rs = RangeSet::new();
-            for point in cw.get_smallest_empty_cluster() {
-                for range in self.get_all_ranges(cw, point, Dir::Right).ranges.into_iter().chain(
-                        self.get_all_ranges(cw, point, Dir::Down).ranges.into_iter()) {
-                    if cw.chars(range).any(|c| c != BLOCK) {
-                        self.add_range(cw, &mut rs, range);
+            for point in self.cw.get_smallest_empty_cluster() {
+                let mut p_ranges = self.get_all_ranges(point, Dir::Right);
+                p_ranges.extend(self.get_all_ranges(point, Dir::Down));
+                for range in p_ranges.ranges.into_iter() {
+                    if self.cw.chars(range).any(|c| c != BLOCK) {
+                        self.add_range(&mut rs, range);
                     }
+                }
+                for range in p_ranges.backtrack_ranges.into_iter() {
+                    rs.backtrack_ranges.insert(range);
                 }
             }
             result = Some(rs);
@@ -221,60 +242,51 @@ impl Author {
         result
     }
 
-    #[inline]
-    fn try_word(&self, cw: &mut Crosswords, range: &Range, word: &CVec) -> bool {
-        // TODO: Check crossing n-grams - if impossible, remove the word again.
-        cw.try_word(range.point, range.dir, &word)
-    }
-
-    fn get_sorted_ranges(&self, cw: &Crosswords, range_set: RangeSet) -> Vec<Range> {
-        let mut ranges: Vec<Range> = range_set.ranges.into_iter().collect();
-        ranges.sort_by(|r0, r1| self.range_score(cw, r1).cmp(&self.range_score(cw, r0)));
+    fn get_sorted_ranges(&self, range_set: HashSet<Range>) -> Vec<Range> {
+        let mut ranges: Vec<Range> = range_set.into_iter().collect();
+        ranges.sort_by(|r0, r1| self.range_score(r1).cmp(&self.range_score(r0)));
         ranges
     }
 
-    pub fn complete_cw(&self, init_cw: &Crosswords) -> Crosswords {
-        let mut cw = init_cw.clone();
+    pub fn complete_cw(&mut self) -> Crosswords {
         let mut stack = Vec::new();
-        let mut iter = match self.get_range_set(&cw) {
-            Some(rs) => WordRangeIter::new(self.get_sorted_ranges(&cw, rs), &self.dicts),
-            None => return cw,
+        let mut iter = match self.get_range_set() {
+            Some(rs) => WordRangeIter::new(self.get_sorted_ranges(rs.ranges), &self.dicts),
+            None => return self.cw.clone(),
         };
+        let mut backtrack_ranges = HashSet::new();
         'main: loop {
             while let Some((range, word)) = iter.next() {
-                if self.try_word(&mut cw, &range, &word) {
-                    match self.get_range_set(&cw) {
+                if self.cw.try_word(range.point, range.dir, &word) {
+                    match self.get_range_set() {
                         Some(rs) => {
-                            stack.push((range, iter));
-                            iter = match rs.est {
-                                0_f32 => WordRangeIter::new(rs.ranges.into_iter().collect(),
-                                                            &self.dicts[..0]),
-                                _ => WordRangeIter::new(self.get_sorted_ranges(&cw, rs),
-                                                        &self.dicts[..]),
-                            };
+                            stack.push((backtrack_ranges, range, iter));
+                            backtrack_ranges = rs.backtrack_ranges;
+                            iter = WordRangeIter::new(
+                                self.get_sorted_ranges(rs.ranges), &self.dicts[..]);
                         }
                         // TODO: Don't stop at success: Backtrack and compare with other solutions.
-                        None => return cw,
+                        None => return self.cw.clone(),
                     };
                 }
             }
-            let ranges = iter.into_ranges();
-            while let Some((range, prev_iter)) = stack.pop() {
+            while let Some((bt_ranges, range, prev_iter)) = stack.pop() {
                 if self.verbose {
-                    println!("{}", cw);
-                    println!("Popping {}, range {:?}", cw.chars(range).collect::<String>(), range);
+                    println!("{}", &self.cw);
+                    println!("Popping {}, range {:?}", self.cw.chars(range).collect::<String>(), range);
                 }
-                iter = prev_iter;
-                cw.pop_word(range.point, range.dir);
-                // TODO: If empty, pop some word next to the empty cells.
+                self.cw.pop_word(range.point, range.dir);
                 // TODO: Remember which characters not to try again.
-                if ranges.is_empty() || ranges.iter().any(|r| range.intersects(r)) {
+                if backtrack_ranges.is_empty()
+                        || backtrack_ranges.iter().any(|r| range.intersects(r)) {
+                    backtrack_ranges = bt_ranges;
+                    iter = prev_iter;
                     continue 'main;
                 }
             }
             // Went all up the stack but found nothing? Give up and return unchanged grid.
             // TODO: Distinguish success and failure in the return value! (Option? Result?)
-            return cw;
+            return self.cw.clone();
             // TODO: If time is up or user interrupts, break.
         }
     }

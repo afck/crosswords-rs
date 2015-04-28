@@ -58,10 +58,6 @@ impl<'a> WordRangeIter<'a> {
             None
         }
     }
-
-    pub fn into_ranges(self) -> Vec<Range> {
-        self.ranges
-    }
 }
 
 #[cfg(test)]

@@ -44,6 +44,7 @@ pub fn main() {
                 "minimum percentage letters of any given word shared with another word", "FLOAT");
     opts.optmulti("d", "dict", "a dictionary file", "FILENAME");
     opts.optflag("h", "help", "print this help menu");
+    opts.optflag("v", "verbose", "print the current grid status during computation");
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => { m }
         Err(f) => { panic!(f.to_string()) }
@@ -58,12 +59,17 @@ pub fn main() {
     let min_crossing = matches.opt_str("c").unwrap_or("2".to_string()).parse().unwrap();
     let min_crossing_rel = 0.01
         * matches.opt_str("p").unwrap_or("30".to_string()).parse::<f32>().unwrap();
+    let verbose = matches.opt_present("v");
     let words = match matches.opt_count("d") {
         0 => vec!("dict/favorites.txt".to_string(), "dict/dict.txt".to_string()),
         _ => matches.opt_strs("d")
     }.into_iter().map(|filename| load_dict(&filename).unwrap()).collect();
-    let author = Author::new(&words, min_crossing, min_crossing_rel);
-    let cw = author.complete_cw(&Crosswords::new(width, height));
+    let mut author = Author::new(&Crosswords::new(width, height),
+                             &words,
+                             min_crossing,
+                             min_crossing_rel,
+                             verbose);
+    let cw = author.complete_cw();
     println!("Score: {}", evaluate(&cw, &words[0]));
     println!("{}", cw);
     write_html_to_file("puzzle.html", &cw, false).unwrap();

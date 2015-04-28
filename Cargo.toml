@@ -6,4 +6,4 @@ authors = ["Andreas Fackler <AndreasFackler@gmx.de>"]
 [dependencies]
 
 getopts = "0.2.10"
-rand = "0.3.7"
+rand = "0.3.8"

@@ -192,7 +192,7 @@ impl Crosswords {
 
     pub fn free_ranges<'a>(&'a self) -> RangesIter<'a> { RangesIter::new_free(&self) }
 
-    fn contains(&self, point: Point) -> bool {
+    pub fn contains(&self, point: Point) -> bool {
         point.x >= 0 && point.y >= 0 && point.x < self.width as i32 && point.y < self.height as i32
     }
 
@@ -203,6 +203,44 @@ impl Crosswords {
             Range::cells_with(point, dir, |p| self.contains(p) && self.get_border(p, dir))
         } else {
             Range { point: point, dir: dir, len: 0 }
+        }
+    }
+
+    pub fn get_free_range_containing(&self, mut point: Point, dir: Dir) -> Range {
+        let dp = dir.point();
+        while self.get_border(point - dp, dir) && self.contains(point - dp) {
+            point = point - dp;
+        }
+        self.get_free_range_at(point, dir)
+    }
+
+    pub fn get_range_after(&self, range: Range) -> Range {
+        let dp = range.dir.point();
+        let mut len = 0;
+        let mut p = range.point + dp * range.len;
+        while self.get_border(p, range.dir) && self.contains(p) {
+            len += 1;
+            p = p + dp;
+        }
+        Range {
+            point: range.point + dp * range.len,
+            dir: range.dir,
+            len: len,
+        }
+    }
+
+    pub fn get_range_before(&self, range: Range) -> Range {
+        let dp = range.dir.point();
+        let mut len = 0;
+        let mut p = range.point;
+        while self.get_border(p - dp * 2, range.dir) && self.contains(p - dp) {
+            len += 1;
+            p = p - dp;
+        }
+        Range {
+            point: p,
+            dir: range.dir,
+            len: len,
         }
     }
 
