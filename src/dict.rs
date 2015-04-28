@@ -47,6 +47,13 @@ impl Dict {
         self.words.get(len).and_then(|w| w.get(n)).cloned()
     }
 
+    pub fn contains(&self, word: &CVec) -> bool {
+        match self.words.get(word.len()) {
+            None => false,
+            Some(v) => v.iter().any(|w| w == word),
+        }
+    }
+
     /*pub fn matches(word: &CVec, pattern: &CVec) -> bool {
         word.len() <= pattern.len()
             && word.iter().zip(pattern.iter()).all(|(&cw, &cp)| cw == cp || cp == BLOCK)

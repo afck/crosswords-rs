@@ -73,6 +73,8 @@ impl Crosswords {
     #[inline]
     pub fn get_height(&self) -> usize { self.height }
 
+    pub fn get_words<'a>(&'a self) -> &'a HashSet<CVec> { &self.words }
+
     #[inline]
     pub fn get_border(&self, point: Point, dir: Dir) -> bool {
         match dir {

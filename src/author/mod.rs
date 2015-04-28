@@ -1,6 +1,6 @@
 mod word_range_iter;
 
-use cw::{BLOCK, Crosswords, Dir, Point, Range};
+use cw::{BLOCK, Crosswords, CVec, Dir, Point, Range};
 use dict::Dict;
 use word_stats::WordStats;
 use std::cmp;
@@ -112,6 +112,7 @@ impl Author {
         if min_crossing_rel < 0_f32 || min_crossing_rel > 1_f32 {
             unreachable!("min_crossing_rel must be between 0 and 1");
         }
+        // TODO: Dicts should be disjoint.
         Author {
             dicts: words.iter().map(|s| Dict::new(s)).collect(),
             cw: init_cw.clone(),
@@ -122,6 +123,15 @@ impl Author {
             stats: WordStats::new(3, &all_words),
             verbose: verbose,
         }
+    }
+
+    pub fn get_word_category(&self, word: &CVec) -> Option<usize> {
+        for (i, dict) in self.dicts.iter().enumerate() {
+            if dict.contains(word) {
+                return Some(i);
+            }
+        }
+        None
     }
 
     /// Returns the maximum number of characters of a word of the given length that don't need to
@@ -167,7 +177,7 @@ impl Author {
         rs.backtrack_ranges.insert(Range {
             point: max_range.point - max_range.dir.point(),
             dir: dir,
-            len: max_range.len + 1,
+            len: max_range.len + 2,
         });
         rs
     }
@@ -223,7 +233,7 @@ impl Author {
             self.get_word_range_set()
         };
         // TODO: Avoid ranges that would isolate clusters of empty cells in the first place.
-        if result.is_none() && !self.cw.is_full() {
+        if result.is_none() && !self.cw.is_full() /*&& !self.cw.is_empty()*/ {
             let mut rs = RangeSet::new();
             for point in self.cw.get_smallest_empty_cluster() {
                 let mut p_ranges = self.get_all_ranges(point, Dir::Right);
@@ -238,6 +248,7 @@ impl Author {
                 }
             }
             result = Some(rs);
+            //result_range_set!(result, rs);
         }
         result
     }
@@ -273,7 +284,9 @@ impl Author {
             while let Some((bt_ranges, range, prev_iter)) = stack.pop() {
                 if self.verbose {
                     println!("{}", &self.cw);
-                    println!("Popping {}, range {:?}", self.cw.chars(range).collect::<String>(), range);
+                    println!("Popping {} at ({}, {}) {:?}",
+                             self.cw.chars(range).collect::<String>(),
+                             range.point.x, range.point.y, range.dir);
                 }
                 self.cw.pop_word(range.point, range.dir);
                 // TODO: Remember which characters not to try again.
