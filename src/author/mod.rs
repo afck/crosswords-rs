@@ -1,10 +1,12 @@
-use cw::{BLOCK, Crosswords, CVec, Dir, Range};
+mod word_range_iter;
+
+use cw::{BLOCK, Crosswords, CVec, Dir, Point, Range};
 use dict::Dict;
-use point::Point;
 use word_stats::WordStats;
 use std::cmp;
 use std::cmp::Ordering;
 use std::collections::HashSet;
+use author::word_range_iter::WordRangeIter;
 
 // TODO
 //
@@ -41,90 +43,6 @@ use std::collections::HashSet;
 // * Number of favorites. (Weighted by length?)
 // * Minimum/average percentage of letters per word that don't belong to a crossing word.
 
-struct WordRangeIter<'a> {
-    ranges: Vec<Range>,
-    range_i: usize,
-    dicts: &'a Vec<Dict>,
-    dict_i: usize,
-    word_i: usize,
-}
-
-impl<'a> WordRangeIter<'a> {
-    fn new(ranges: Vec<Range>, dicts: &'a Vec<Dict>) -> WordRangeIter<'a> {
-        WordRangeIter {
-            ranges: ranges,
-            dicts: dicts,
-            word_i: 0,
-            range_i: 0,
-            dict_i: 0,
-        }
-    }
-
-    #[inline]
-    fn get_word(&self) -> Option<CVec> {
-        let range = match self.ranges.get(self.range_i) {
-            None => return None,
-            Some(r) => r,
-        };
-        self.dicts.get(self.dict_i).and_then(|dict| dict.get_word(range.len, self.word_i))
-    }
-
-    fn advance(&mut self) {
-        self.word_i += 1;
-        while self.dict_i < self.dicts.len() && self.get_word().is_none() {
-            self.word_i = 0;
-            self.range_i += 1;
-            while self.range_i < self.ranges.len() && self.get_word().is_none() {
-                self.range_i += 1;
-            }
-            if self.range_i >= self.ranges.len() {
-                self.range_i = 0;
-                self.dict_i += 1;
-            }
-        }
-    }
-
-    fn next(&mut self) -> Option<(Range, CVec)> {
-        let mut oword = self.get_word();
-        while oword.is_none() && self.dict_i < self.dicts.len() {
-            self.advance();
-            oword = self.get_word();
-        }
-        if let Some(word) = oword {
-            let range = self.ranges[self.range_i];
-            self.advance();
-            Some((range, word))
-        } else {
-            None
-        }
-    }
-
-    fn into_ranges(self) -> Vec<Range> {
-        self.ranges
-    }
-}
-
-#[test]
-fn test_range_iter() {
-    let point = Point::new(0, 0);
-    let ranges = vec!(
-        Range { point: point, dir: Dir::Right, len: 6 },
-        Range { point: point, dir: Dir::Right, len: 3 },
-        Range { point: point, dir: Dir::Right, len: 2 },
-    );
-    let dicts = vec!(
-        Dict::new(&vec!("FAV".to_string(),
-                        "TOOLONG".to_string()).into_iter().collect::<HashSet<_>>()),
-        Dict::new(&vec!("YO".to_string(),
-                        "FOO".to_string(),
-                        "FOOBAR".to_string()).into_iter().collect::<HashSet<_>>()),
-    );
-    let mut iter = WordRangeIter::new(ranges.clone(), &dicts);
-    assert_eq!(Some((ranges[1], "FAV".chars().collect())), iter.next());
-    assert_eq!(Some((ranges[0], "FOOBAR".chars().collect())), iter.next());
-    assert_eq!(Some((ranges[1], "FOO".chars().collect())), iter.next());
-    assert_eq!(Some((ranges[2], "YO".chars().collect())), iter.next());
-}
 
 #[derive(Clone, PartialEq)]
 struct RangeSet {
@@ -158,6 +76,7 @@ pub struct Author {
     min_crossing_rel: f32,
     dicts: Vec<Dict>,
     stats: WordStats,
+    verbose: bool,
 }
 
 macro_rules! result_range_set {
@@ -180,12 +99,12 @@ impl Author {
         }
         Author {
             // TODO: min_fav_words / max_nonfav_words ...
-            // TODO: min_avg_len: (minimum average word length -> max number of words)
+            //min_avg_cells_per_word: 5_f32, // TODO: Make this a command line option.
             min_crossing: min_crossing,
-            //min_crossing_rel: 1.0,
             min_crossing_rel: min_crossing_rel,
             dicts: words.iter().map(|s| Dict::new(s)).collect(),
             stats: WordStats::new(3, &all_words),
+            verbose: true, // TODO: Make this a command line option.
         }
     }
 
@@ -231,7 +150,7 @@ impl Author {
 
     fn get_word_range_set(&self, cw: &Crosswords) -> Option<RangeSet> {
         let mut result = None;
-        for range in cw.words() {
+        for range in cw.word_ranges() {
             let odir = range.dir.other();
             let odp = odir.point();
             let candidate_points: Vec<Point> = range.points().filter(|&p| {
@@ -315,7 +234,6 @@ impl Author {
     }
 
     pub fn complete_cw(&self, init_cw: &Crosswords) -> Crosswords {
-        let empty_dicts = Vec::new();
         let mut cw = init_cw.clone();
         let mut stack = Vec::new();
         let mut iter = match self.get_range_set(&cw) {
@@ -329,9 +247,10 @@ impl Author {
                         Some(rs) => {
                             stack.push((range, iter));
                             iter = match rs.est {
-                                0_f32 => WordRangeIter::new(rs.ranges.into_iter().collect(), &empty_dicts),
+                                0_f32 => WordRangeIter::new(rs.ranges.into_iter().collect(),
+                                                            &self.dicts[..0]),
                                 _ => WordRangeIter::new(self.get_sorted_ranges(&cw, rs),
-                                                        &self.dicts),
+                                                        &self.dicts[..]),
                             };
                         }
                         // TODO: Don't stop at success: Backtrack and compare with other solutions.
@@ -341,12 +260,12 @@ impl Author {
             }
             let ranges = iter.into_ranges();
             while let Some((range, prev_iter)) = stack.pop() {
+                if self.verbose {
+                    println!("{}", cw);
+                    println!("Popping {}, range {:?}", cw.chars(range).collect::<String>(), range);
+                }
                 iter = prev_iter;
-                // TODO: Make verbosity a command line option.
-                println!("{}", cw);
-                let word = cw.pop_word(range.point, range.dir);
-                println!("Popping {}, range {:?}",
-                         word.clone().into_iter().collect::<String>(), range);
+                cw.pop_word(range.point, range.dir);
                 // TODO: If empty, pop some word next to the empty cells.
                 // TODO: Remember which characters not to try again.
                 if ranges.is_empty() || ranges.iter().any(|r| range.intersects(r)) {

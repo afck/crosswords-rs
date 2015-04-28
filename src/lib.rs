@@ -3,7 +3,6 @@ extern crate rand;
 mod author;
 mod cw;
 mod dict;
-mod point;
 mod word_stats;
 
 pub use cw::{Crosswords, Dir, Point, PrintItem, Range};
@@ -23,7 +22,7 @@ fn evaluate_word(cw: &Crosswords, range: &Range) -> i32 {
 
 pub fn evaluate(cw: &Crosswords, fav_set: &HashSet<String>) -> i32 {
     let mut score = 0;
-    for range in cw.words() {
+    for range in cw.word_ranges() {
         score += evaluate_word(cw, &range);
         if fav_set.contains(&cw.chars(range).collect::<String>()) {
             score += 5;

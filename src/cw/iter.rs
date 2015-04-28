@@ -1,5 +1,4 @@
-use cw::{BLOCK, Crosswords, Dir, Range};
-use point::Point;
+use cw::{BLOCK, Crosswords, Dir, Range, Point};
 
 pub struct RangeIter<'a> {
     pi: PointIter,

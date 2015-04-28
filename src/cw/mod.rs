@@ -1,7 +1,10 @@
 mod iter;
+mod point;
+mod range;
 
 pub use cw::iter::{PointIter, PrintItem};
-pub use point::Point;
+pub use cw::range::Range;
+pub use cw::point::Point;
 
 use std::collections::HashSet;
 use std::iter::{repeat, Zip};
@@ -13,36 +16,6 @@ use cw::iter::{PrintIter, RangeIter, RangesIter};
 pub type CVec = Vec<char>;
 
 pub const BLOCK: char = '#';
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct Range {
-    pub point: Point,
-    pub dir: Dir,
-    pub len: usize,
-}
-
-impl Range {
-    pub fn cells_with<F>(point: Point, dir: Dir, mut f: F) -> Range where F: FnMut(Point) -> bool {
-        let dp = dir.point();
-        let mut p = point;
-        let mut len = 0;
-        while f(p) {
-            len += 1;
-            p = p + dp;
-        }
-        Range { point: point, dir: dir, len: len }
-    }
-
-    pub fn points(&self) -> PointIter {
-        PointIter::new(self.point, self.dir, self.len)
-    }
-
-    pub fn intersects(&self, other: &Range) -> bool {
-        let (s0, s1) = (self.point, self.point + self.dir.point() * (self.len - 1));
-        let (o0, o1) = (other.point, other.point + other.dir.point() * (other.len - 1));
-        s0.x <= o1.x && o0.x <= s1.x && s0.y <= o1.y && o0.y <= s1.y
-    }
-}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Dir {
@@ -268,7 +241,7 @@ impl Crosswords {
         smallest
     }
 
-    pub fn words<'a>(&'a self) -> RangesIter<'a> { RangesIter::new_words(&self) }
+    pub fn word_ranges<'a>(&'a self) -> RangesIter<'a> { RangesIter::new_words(&self) }
 
     pub fn get_word_range_at(&self, point: Point, dir: Dir) -> Range {
         let dp = dir.point();
