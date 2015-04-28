@@ -1,6 +1,5 @@
 use crosswords_rs::{Crosswords, Dir, Point, PrintItem};
-use std::fs::File;
-use std::io::{BufWriter, Result, Write};
+use std::io::{Result, Write};
 
 const HTML_START: &'static str = r#"
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
@@ -65,17 +64,15 @@ fn write_grid<T: Write, I: Iterator<Item = PrintItem>>(writer: &mut T, items: I)
     Ok(())
 }
 
-pub fn write_html(cw: Crosswords) -> Result<()> {
-    let file = try!(File::create("cw.html"));
-    let mut writer = BufWriter::new(file);
+pub fn write_html<T: Write>(writer: &mut T, cw: &Crosswords, solution: bool) -> Result<()> {
     try!(writer.write_all(HTML_START.as_bytes()));
-    try!(write!(writer, "<table border=0 cellspacing=0 cellpadding=30><tr><td>\n\n"));
-    try!(write_grid(&mut writer, cw.print_items_solution()));
-    try!(write!(writer, "</td><td>\n\n"));
-    try!(write_grid(&mut writer, cw.print_items_puzzle()));
-    try!(writeln!(writer, "</td></tr></table>"));
-    try!(write_hints(&mut writer, &cw, Dir::Right));
-    try!(write_hints(&mut writer, &cw, Dir::Down));
+    try!(write_grid(writer, if solution {
+        cw.print_items_solution()
+    } else {
+        cw.print_items_puzzle()
+    }));
+    try!(write_hints(writer, &cw, Dir::Right));
+    try!(write_hints(writer, &cw, Dir::Down));
     try!(writer.write_all(HTML_END.as_bytes()));
     Ok(())
 }

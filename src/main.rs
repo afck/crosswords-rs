@@ -8,17 +8,25 @@ mod html;
 use crosswords_rs::{Author, Crosswords, evaluate};
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Result};
+use std::io::{BufRead, BufReader, BufWriter, Result};
 
 fn load_dict(filename: &String) -> Result<HashSet<String>> {
     let mut dict = HashSet::new();
     let file = try!(File::open(filename));
     for line in BufReader::new(file).lines() {
         if let Ok(word) = line {
-            dict.insert(word);
+            if word.chars().count() >= 2 { // TODO: Min word length command line option.
+                dict.insert(word);
+            }
         }
     }
     Ok(dict)
+}
+
+fn write_html_to_file(filename: &str, cw: &Crosswords, solution: bool) -> Result<()> {
+    let file = try!(File::create(filename));
+    let mut writer = BufWriter::new(file);
+    html::write_html(&mut writer, cw, solution)
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -58,6 +66,6 @@ fn main() {
     let cw = author.complete_cw(&Crosswords::new(width, height));
     println!("Score: {}", evaluate(&cw, &words[0]));
     println!("{}", cw);
-    html::write_html(cw).unwrap();
-    //write_html(generate_crosswords(&words, 10, 5)).unwrap();
+    write_html_to_file("puzzle.html", &cw, false).unwrap();
+    write_html_to_file("solution.html", &cw, true).unwrap();
 }

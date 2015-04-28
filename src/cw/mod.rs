@@ -10,7 +10,9 @@ use std::fmt::{Display, Formatter};
 use std::slice;
 use cw::iter::{PrintIter, RangeIter, RangesIter};
 
-pub const BLOCK: char = '\u{2588}';
+pub type CVec = Vec<char>;
+
+pub const BLOCK: char = '#';
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Range {
@@ -64,7 +66,7 @@ impl Dir {
     }
 }
 
-fn word_iter<'a>(word: &'a Vec<char>, point: Point, dir: Dir)
+fn word_iter<'a>(word: &'a CVec, point: Point, dir: Dir)
         -> Zip<slice::Iter<'a, char>, PointIter> {
     word.iter().zip(PointIter::new(point, dir, word.len()))
 }
@@ -74,10 +76,10 @@ fn word_iter<'a>(word: &'a Vec<char>, point: Point, dir: Dir)
 pub struct Crosswords {
     width: usize,
     height: usize,
-    chars: Vec<char>,
+    chars: CVec,
     right_border: Vec<bool>,
     down_border: Vec<bool>,
-    words: HashSet<Vec<char>>,
+    words: HashSet<CVec>,
 }
 
 impl Crosswords {
@@ -156,7 +158,7 @@ impl Crosswords {
         self.chars(self.get_word_range_at(point, dir))
     }
 
-    pub fn word_at(&self, point: Point, dir: Dir) -> Vec<char> {
+    pub fn word_at(&self, point: Point, dir: Dir) -> CVec {
         self.chars_at(point, dir).collect()
     }
 
@@ -168,7 +170,7 @@ impl Crosswords {
         existing
     }
 
-    pub fn is_word_allowed(&self, point: Point, dir: Dir, word: &Vec<char>) -> bool {
+    pub fn is_word_allowed(&self, point: Point, dir: Dir, word: &CVec) -> bool {
         let dp = dir.point();
         let len = word.len() as i32;
         !self.words.contains(word) && len > 1
@@ -177,7 +179,7 @@ impl Crosswords {
             && word_iter(word, point, dir).all(|(&c, p)| self.is_char_allowed(p, c))
     }
 
-    fn push_word(&mut self, point: Point, dir: Dir, word: &Vec<char>) {
+    fn push_word(&mut self, point: Point, dir: Dir, word: &CVec) {
         for (&c, p) in word_iter(word, point, dir) {
             let existing = self.word_at(p, dir);
             self.words.remove(&existing);
@@ -189,7 +191,7 @@ impl Crosswords {
         self.words.insert(word.clone());
     }
 
-    pub fn pop_word(&mut self, point: Point, dir: Dir) -> Vec<char> {
+    pub fn pop_word(&mut self, point: Point, dir: Dir) -> CVec {
         let word: Vec<_> = self.word_at(point, dir);
         if word.len() <= 1 {
             return Vec::new();
@@ -206,7 +208,7 @@ impl Crosswords {
         word
     }
 
-    pub fn try_word(&mut self, point: Point, dir: Dir, word: &Vec<char>) -> bool {
+    pub fn try_word(&mut self, point: Point, dir: Dir, word: &CVec) -> bool {
         if self.is_word_allowed(point, dir, word) {
             self.push_word(point, dir, word);
             true
@@ -310,7 +312,7 @@ impl Display for Crosswords {
                 PrintItem::HorizBorder(true) => '\u{2014}',
                 PrintItem::Cross(_) | PrintItem::VertBorder(false) | PrintItem::HorizBorder(false)
                     => ' ',
-                PrintItem::Block => BLOCK,
+                PrintItem::Block => '\u{2588}',
                 PrintItem::Character(c) => c,
                 PrintItem::Hint(_) => '\'',
                 PrintItem::LineBreak => '\n',
