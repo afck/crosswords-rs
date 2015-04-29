@@ -1,19 +1,17 @@
 use cw::{CVec, Range};
 use dict::Dict;
 
-pub struct WordRangeIter<'a> {
+pub struct WordRangeIter {
     ranges: Vec<Range>,
     range_i: usize,
-    dicts: &'a[Dict],
     dict_i: usize,
     word_i: usize,
 }
 
-impl<'a> WordRangeIter<'a> {
-    pub fn new(ranges: Vec<Range>, dicts: &'a[Dict]) -> WordRangeIter<'a> {
+impl WordRangeIter {
+    pub fn new(ranges: Vec<Range>) -> WordRangeIter {
         WordRangeIter {
             ranges: ranges,
-            dicts: dicts,
             word_i: 0,
             range_i: 0,
             dict_i: 0,
@@ -21,20 +19,20 @@ impl<'a> WordRangeIter<'a> {
     }
 
     #[inline]
-    fn get_word(&self) -> Option<CVec> {
+    fn get_word(&self, dicts: &Vec<Dict>) -> Option<CVec> {
         let range = match self.ranges.get(self.range_i) {
             None => return None,
             Some(r) => r,
         };
-        self.dicts.get(self.dict_i).and_then(|dict| dict.get_word(range.len, self.word_i))
+        dicts.get(self.dict_i).and_then(|dict| dict.get_word(range.len, self.word_i))
     }
 
-    fn advance(&mut self) {
+    fn advance(&mut self, dicts: &Vec<Dict>) {
         self.word_i += 1;
-        while self.dict_i < self.dicts.len() && self.get_word().is_none() {
+        while self.dict_i < dicts.len() && self.get_word(dicts).is_none() {
             self.word_i = 0;
             self.range_i += 1;
-            while self.range_i < self.ranges.len() && self.get_word().is_none() {
+            while self.range_i < self.ranges.len() && self.get_word(dicts).is_none() {
                 self.range_i += 1;
             }
             if self.range_i >= self.ranges.len() {
@@ -44,15 +42,15 @@ impl<'a> WordRangeIter<'a> {
         }
     }
 
-    pub fn next(&mut self) -> Option<(Range, CVec)> {
-        let mut oword = self.get_word();
-        while oword.is_none() && self.dict_i < self.dicts.len() {
-            self.advance();
-            oword = self.get_word();
+    pub fn next(&mut self, dicts: &Vec<Dict>) -> Option<(Range, CVec)> {
+        let mut oword = self.get_word(dicts);
+        while oword.is_none() && self.dict_i < dicts.len() {
+            self.advance(dicts);
+            oword = self.get_word(dicts);
         }
         if let Some(word) = oword {
             let range = self.ranges[self.range_i];
-            self.advance();
+            self.advance(dicts);
             Some((range, word))
         } else {
             None
@@ -82,10 +80,10 @@ mod tests {
                             "FOO".to_string(),
                             "FOOBAR".to_string()).into_iter().collect::<HashSet<_>>()),
         );
-        let mut iter = WordRangeIter::new(ranges.clone(), &dicts);
-        assert_eq!(Some((ranges[1], "FAV".chars().collect())), iter.next());
-        assert_eq!(Some((ranges[0], "FOOBAR".chars().collect())), iter.next());
-        assert_eq!(Some((ranges[1], "FOO".chars().collect())), iter.next());
-        assert_eq!(Some((ranges[2], "YO".chars().collect())), iter.next());
+        let mut iter = WordRangeIter::new(ranges.clone());
+        assert_eq!(Some((ranges[1], "FAV".chars().collect())), iter.next(&dicts));
+        assert_eq!(Some((ranges[0], "FOOBAR".chars().collect())), iter.next(&dicts));
+        assert_eq!(Some((ranges[1], "FOO".chars().collect())), iter.next(&dicts));
+        assert_eq!(Some((ranges[2], "YO".chars().collect())), iter.next(&dicts));
     }
 }

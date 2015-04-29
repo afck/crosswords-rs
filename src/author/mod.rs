@@ -81,6 +81,12 @@ impl RangeSet {
     }
 }
 
+struct StackItem {
+    bt_ranges: HashSet<Range>,
+    iter: WordRangeIter,
+    range: Range,
+}
+
 pub struct Author {
     dicts: Vec<Dict>,
     cw: Crosswords,
@@ -88,6 +94,7 @@ pub struct Author {
     min_crossing_rel: f32,
     stats: WordStats,
     verbose: bool,
+    stack: Vec<StackItem>,
 }
 
 macro_rules! result_range_set {
@@ -122,6 +129,7 @@ impl Author {
             min_crossing_rel: min_crossing_rel,
             stats: WordStats::new(3, &all_words),
             verbose: verbose,
+            stack: Vec::new(),
         }
     }
 
@@ -259,52 +267,73 @@ impl Author {
         ranges
     }
 
-    // TODO: Move the stack to Author, so that calling complete_cw() repeatedly iterates through
+    fn pop(&mut self) -> Option<StackItem> {
+        let opt_item = self.stack.pop();
+        if let Some(ref item) = opt_item {
+            let range = item.range;
+            if self.verbose {
+                println!("{}", &self.cw);
+                println!("Popping {} at ({}, {}) {:?}",
+                         self.cw.chars(range).collect::<String>(),
+                         range.point.x, range.point.y, range.dir);
+            }
+            self.cw.pop_word(range.point, range.dir);
+        }
+        opt_item
+    }
+
+    pub fn pop_to_n_words(&mut self, n: usize) {
+        while self.stack.len() > n {
+            self.pop();
+        }
+    }
+
+    fn range_meets(range: &Range, bt_ranges: &HashSet<Range>) -> bool {
+        bt_ranges.is_empty()
+            || bt_ranges.iter().any(|r| range.intersects(r) || range.is_adjacent_to(r))
+    }
+
+    // TODO: Calling complete_cw() repeatedly should iterate through
     //       all solutions. Add a method to pop all but the first item to allow iterating through
     //       a set of substantially different solutions.
-    pub fn complete_cw(&mut self) -> Crosswords {
-        let mut stack = Vec::new();
+    pub fn complete_cw(&mut self) -> Option<Crosswords> {
         let mut bt_ranges = HashSet::new();
-        let mut iter = match self.get_range_set() {
-            Some(rs) => WordRangeIter::new(self.get_sorted_ranges(rs.ranges), &self.dicts),
-            None => return self.cw.clone(),
+        let mut iter = match self.pop() {
+            Some(item) => item.iter, // Drop bt_ranges, as iter was successful!.
+            None => match self.get_range_set() {
+                Some(rs) => WordRangeIter::new(self.get_sorted_ranges(rs.ranges)),
+                None => return None,
+            },
         };
         'main: loop {
-            while let Some((range, word)) = iter.next() {
+            while let Some((range, word)) = iter.next(&self.dicts) {
                 if self.cw.try_word(range.point, range.dir, &word) {
+                    self.stack.push(StackItem {
+                        bt_ranges: bt_ranges,
+                        range: range,
+                        iter: iter,
+                    });
                     match self.get_range_set() {
                         Some(rs) => {
-                            stack.push((bt_ranges, range, iter));
                             bt_ranges = rs.backtrack_ranges;
-                            iter = WordRangeIter::new(
-                                self.get_sorted_ranges(rs.ranges), &self.dicts[..]);
+                            iter = WordRangeIter::new(self.get_sorted_ranges(rs.ranges));
                         }
-                        None => return self.cw.clone(),
+                        None => return Some(self.cw.clone()),
                     };
                 }
             }
-            while let Some((prev_bt_ranges, range, prev_iter)) = stack.pop() {
-                if self.verbose {
-                    println!("{}", &self.cw);
-                    println!("Popping {} at ({}, {}) {:?}",
-                             self.cw.chars(range).collect::<String>(),
-                             range.point.x, range.point.y, range.dir);
-                    println!("Backtrack ranges: {:?}", bt_ranges);
-                }
-                self.cw.pop_word(range.point, range.dir);
+            while let Some(item) = self.pop() {
                 // TODO: Remember which characters not to try again.
                 // TODO: Save the current range set as a "try next" hint. (Is there a way to make
                 //       that work recursively ...?)
-                if bt_ranges.is_empty() || bt_ranges.iter().any(
-                        |r| range.intersects(r) || range.is_adjacent_to(r)) {
-                    bt_ranges = prev_bt_ranges;
-                    iter = prev_iter;
+                if Author::range_meets(&item.range, &bt_ranges) {
+                    bt_ranges = item.bt_ranges;
+                    iter = item.iter;
                     continue 'main;
                 }
             }
-            // Went all up the stack but found nothing? Give up and return unchanged grid.
-            // TODO: Distinguish success and failure in the return value! (Option? Result?)
-            return self.cw.clone();
+            // Went all up the stack but found nothing? Give up.
+            return None;
             // TODO: If time is up or user interrupts, break.
         }
     }

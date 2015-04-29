@@ -2,10 +2,11 @@ extern crate crosswords_rs;
 extern crate getopts;
 use getopts::Options;
 use std::env;
+use std::i32;
 
 mod html;
 
-use crosswords_rs::{Author, Crosswords, evaluate};
+use crosswords_rs::{Author, Crosswords, Range};
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Result};
@@ -33,6 +34,35 @@ fn write_html_to_file(filename: &str, cw: &Crosswords, solution: bool) -> Result
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
     print!("{}", opts.usage(&brief));
+}
+
+fn evaluate_word(cw: &Crosswords, range: &Range) -> i32 {
+    let mut score = range.len as i32;
+    let odir = range.dir.other();
+    for p in range.points() {
+        if !cw.get_border(p, odir) || !cw.get_border(p - odir.point(), odir) {
+            score += 1; // Crosses another word.
+        }
+    }
+    score
+}
+
+fn evaluate(cw: &Crosswords, author: &Author) -> i32 {
+    let mut score = 0;
+    for range in cw.word_ranges() {
+        score += evaluate_word(cw, &range);
+        if author.get_word_category(&cw.chars(range).collect()) != Some(0) {
+            score -= 5;
+        }
+    }
+    score
+}
+
+fn print_cw(cw: &Crosswords, author: &Author) {
+    println!("{} / {} words are favorites. Score: {}",
+        cw.get_words().iter().filter(|w| author.get_word_category(&w) == Some(0)).count(),
+        cw.get_words().len(), evaluate(&cw, author));
+    println!("{}", cw);
 }
 
 pub fn main() {
@@ -72,11 +102,23 @@ pub fn main() {
                              min_crossing,
                              min_crossing_rel,
                              verbose);
-    let cw = author.complete_cw();
-    println!("{} / {} words are favorites. Score: {}",
-        cw.get_words().iter().filter(|w| author.get_word_category(&w) == Some(0)).count(),
-        cw.get_words().len(), evaluate(&cw, &words[0]));
-    println!("{}", cw);
-    write_html_to_file("puzzle.html", &cw, false).unwrap();
-    write_html_to_file("solution.html", &cw, true).unwrap();
+    let mut best_cw = None;
+    let mut best_val = i32::MIN;
+    let samples = 1; // TODO
+    for _ in 0..samples {
+        let cw = author.complete_cw().unwrap();
+        let val = evaluate(&cw, &author);
+        print_cw(&cw, &author);
+        if val > best_val {
+            best_cw = Some(cw);
+            best_val = val;
+        }
+        author.pop_to_n_words(1);
+    }
+    if let Some(cw) = best_cw {
+        println!("Best candidate:");
+        print_cw(&cw, &author);
+        write_html_to_file("puzzle.html", &cw, false).unwrap();
+        write_html_to_file("solution.html", &cw, true).unwrap();
+    }
 }
