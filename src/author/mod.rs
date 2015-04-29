@@ -142,7 +142,7 @@ impl Author {
     }
 
     fn add_range(&self, rs: &mut RangeSet, range: Range) {
-        let blocks_words = self.min_crossing_rel == 1.0
+        let blocks_words = self.min_crossing_rel == 1_f32
             && (self.cw.get_range_before(range).len == 1
                 || self.cw.get_range_after(range).len == 1);
         if !blocks_words {
@@ -158,9 +158,10 @@ impl Author {
     fn get_all_ranges(&self, point: Point, dir: Dir) -> RangeSet {
         let mut rs = RangeSet::new();
         let mut i = 1;
+        let mut j = 0;
         let dp = dir.point();
         while self.cw.get_border(point - dp * i, dir) && self.cw.contains(point - dp * (i - 1)) {
-            let mut j = 0;
+            j = 0;
             while self.cw.get_border(point + dp * j, dir) && self.cw.contains(point + dp * j) {
                 if i + j > 1 {
                     self.add_range(&mut rs, Range {
@@ -173,11 +174,10 @@ impl Author {
             }
             i += 1;
         }
-        let max_range = self.cw.get_free_range_containing(point, dir);
         rs.backtrack_ranges.insert(Range {
-            point: max_range.point - max_range.dir.point(),
+            point: point - dp * (i - 2),
             dir: dir,
-            len: max_range.len + 2,
+            len: i + j - 2,
         });
         rs
     }
@@ -259,40 +259,45 @@ impl Author {
         ranges
     }
 
+    // TODO: Move the stack to Author, so that calling complete_cw() repeatedly iterates through
+    //       all solutions. Add a method to pop all but the first item to allow iterating through
+    //       a set of substantially different solutions.
     pub fn complete_cw(&mut self) -> Crosswords {
         let mut stack = Vec::new();
+        let mut bt_ranges = HashSet::new();
         let mut iter = match self.get_range_set() {
             Some(rs) => WordRangeIter::new(self.get_sorted_ranges(rs.ranges), &self.dicts),
             None => return self.cw.clone(),
         };
-        let mut backtrack_ranges = HashSet::new();
         'main: loop {
             while let Some((range, word)) = iter.next() {
                 if self.cw.try_word(range.point, range.dir, &word) {
                     match self.get_range_set() {
                         Some(rs) => {
-                            stack.push((backtrack_ranges, range, iter));
-                            backtrack_ranges = rs.backtrack_ranges;
+                            stack.push((bt_ranges, range, iter));
+                            bt_ranges = rs.backtrack_ranges;
                             iter = WordRangeIter::new(
                                 self.get_sorted_ranges(rs.ranges), &self.dicts[..]);
                         }
-                        // TODO: Don't stop at success: Backtrack and compare with other solutions.
                         None => return self.cw.clone(),
                     };
                 }
             }
-            while let Some((bt_ranges, range, prev_iter)) = stack.pop() {
+            while let Some((prev_bt_ranges, range, prev_iter)) = stack.pop() {
                 if self.verbose {
                     println!("{}", &self.cw);
                     println!("Popping {} at ({}, {}) {:?}",
                              self.cw.chars(range).collect::<String>(),
                              range.point.x, range.point.y, range.dir);
+                    println!("Backtrack ranges: {:?}", bt_ranges);
                 }
                 self.cw.pop_word(range.point, range.dir);
                 // TODO: Remember which characters not to try again.
-                if backtrack_ranges.is_empty()
-                        || backtrack_ranges.iter().any(|r| range.intersects(r)) {
-                    backtrack_ranges = bt_ranges;
+                // TODO: Save the current range set as a "try next" hint. (Is there a way to make
+                //       that work recursively ...?)
+                if bt_ranges.is_empty() || bt_ranges.iter().any(
+                        |r| range.intersects(r) || range.is_adjacent_to(r)) {
+                    bt_ranges = prev_bt_ranges;
                     iter = prev_iter;
                     continue 'main;
                 }

@@ -200,20 +200,12 @@ impl Crosswords {
 
     pub fn get_free_range_at(&self, point: Point, dir: Dir) -> Range {
         let dp = dir.point();
-        let after_word = self.get_border(point - dp, dir) && !self.get_border(point - dp * 2, dir);
-        if after_word || !self.contains(point - dp) {
+        if !self.contains(point - dp)
+                || (self.get_border(point - dp, dir) && !self.get_border(point - dp * 2, dir)) {
             Range::cells_with(point, dir, |p| self.contains(p) && self.get_border(p, dir))
         } else {
             Range { point: point, dir: dir, len: 0 }
         }
-    }
-
-    pub fn get_free_range_containing(&self, mut point: Point, dir: Dir) -> Range {
-        let dp = dir.point();
-        while self.get_border(point - dp, dir) && self.contains(point - dp) {
-            point = point - dp;
-        }
-        self.get_free_range_at(point, dir)
     }
 
     pub fn get_range_after(&self, range: Range) -> Range {
@@ -321,10 +313,11 @@ impl Display for Crosswords {
         }
         for item in self.print_items_solution() {
             try!(formatter.write_str(&match item {
+                PrintItem::Cross(true) => '\u{00B7}',
                 PrintItem::VertBorder(true) => '|',
                 PrintItem::HorizBorder(true) => '\u{2014}',
-                PrintItem::Cross(_) | PrintItem::VertBorder(false) | PrintItem::HorizBorder(false)
-                    => ' ',
+                PrintItem::Cross(false) | PrintItem::VertBorder(false)
+                    | PrintItem::HorizBorder(false) => ' ',
                 PrintItem::Block => '\u{2588}',
                 PrintItem::Character(c) => c,
                 PrintItem::Hint(_) => '\'',

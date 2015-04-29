@@ -15,6 +15,7 @@ fn load_dict(filename: &String, min_word_len: usize) -> Result<HashSet<String>> 
     let file = try!(File::open(filename));
     for line in BufReader::new(file).lines() {
         if let Ok(word) = line {
+            // TODO: First replace umlauts, then compare length!
             if word.chars().count() >= min_word_len {
                 dict.insert(word);
             }
