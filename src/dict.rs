@@ -43,6 +43,7 @@ impl Dict {
         }
     }
 
+    // TODO: Index words by n-grams for faster pattern matching.
     pub fn get_word(&self, len: usize, n: usize) -> Option<CVec> {
         self.words.get(len).and_then(|w| w.get(n)).cloned()
     }

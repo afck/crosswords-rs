@@ -46,9 +46,13 @@ use author::word_range_iter::WordRangeIter;
 
 #[derive(Clone, PartialEq)]
 struct RangeSet {
+    /// One of these ranges must be filled.
     ranges: HashSet<Range>,
+    /// If none of the ranges could be filled, backtracking until a word crossing or extending one
+    /// of the backtrack ranges is removed will open up new possibilities.
     backtrack_ranges: HashSet<Range>,
-    est: f32, // Estimated number of words that fit in one of the ranges.
+    /// Estimated number of words that fit in one of the ranges.
+    est: f32,
 }
 
 impl PartialOrd for RangeSet {
@@ -97,6 +101,7 @@ pub struct Author {
     stack: Vec<StackItem>,
 }
 
+// TODO: Find a saner way to do this.
 macro_rules! result_range_set {
     ( $result:expr, $rs:expr ) => {
         if $rs.est == 0_f32 {
@@ -234,6 +239,8 @@ impl Author {
         result
     }
 
+    // TODO: Constructing range sets should abort as soon as the estimate surpasses the lowest one
+    //       found so far.
     fn get_range_set(&self) -> Option<RangeSet> {
         let mut result = if self.cw.is_empty() {
             Some(self.get_ranges_for_empty())
@@ -241,6 +248,8 @@ impl Author {
             self.get_word_range_set()
         };
         // TODO: Avoid ranges that would isolate clusters of empty cells in the first place.
+        //       This could be combined with finding empty clusters, as we're only interested in
+        //       their boundaries anyway.
         if result.is_none() && !self.cw.is_full() /*&& !self.cw.is_empty()*/ {
             let mut rs = RangeSet::new();
             for point in self.cw.get_smallest_empty_cluster() {

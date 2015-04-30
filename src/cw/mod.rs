@@ -1,8 +1,12 @@
-mod iter;
+mod point_iter;
+mod print_iter;
+mod range_iter;
+mod ranges_iter;
 mod point;
 mod range;
 
-pub use cw::iter::{PointIter, PrintItem};
+pub use cw::point_iter::PointIter;
+pub use cw::print_iter::PrintItem;
 pub use cw::range::Range;
 pub use cw::point::Point;
 
@@ -11,7 +15,9 @@ use std::iter::{repeat, Zip};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::slice;
-use cw::iter::{PrintIter, RangeIter, RangesIter};
+use cw::print_iter::PrintIter;
+use cw::range_iter::RangeIter;
+use cw::ranges_iter::RangesIter;
 
 pub type CVec = Vec<char>;
 
