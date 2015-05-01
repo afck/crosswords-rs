@@ -147,6 +147,27 @@ impl Author {
         None
     }
 
+    #[inline]
+    fn would_block(&self, range: Range, point: Point) -> bool {
+        self.cw.get_char(point) == Some(BLOCK) || return false;
+        // Make sure this range doesn't isolate a cluster of empty cells.
+        self.cw.get_boundary_iter_for(point, range).any(|r| {
+            self.cw.is_range_free(r) && !(r.dir == range.dir && range.intersects(&r))
+        }) || return true;
+        let mut c_opts = 0;
+        for p in self.cw.get_free_range_containing(point, range.dir.other()).points() {
+            let r0 = Range { point: p, dir: range.dir, len: 2 };
+            let r1 = Range { point: p - range.dir.point(), dir: range.dir, len: 2 };
+            if self.cw.get_char(p) != Some(BLOCK)
+                    || (!r0.intersects(&range) && self.cw.is_range_free(r0))
+                    || (!r1.intersects(&range) && self.cw.is_range_free(r1)) {
+                c_opts += 1;
+                c_opts < self.min_crossing || return false;
+            }
+        }
+        true
+    }
+
     /// Returns the maximum number of characters of a word of the given length that don't need to
     /// be connected to a crossing word.
     fn get_max_noncrossing(&self, len: usize) -> usize {
@@ -155,14 +176,18 @@ impl Author {
     }
 
     fn add_range(&self, rs: &mut RangeSet, range: Range) {
-        let blocks_words = self.min_crossing_rel == 1_f32
-            && (self.cw.get_range_before(range).len == 1
-                || self.cw.get_range_after(range).len == 1);
-        if !blocks_words {
-            let est = self.stats.estimate_matches(&self.cw.chars(range).collect());
-            if est != 0_f32 && rs.ranges.insert(range) {
-                rs.est += est;
-            }
+        if self.min_crossing_rel == 1_f32 && (self.cw.get_range_before(range).len == 1
+                                              || self.cw.get_range_after(range).len == 1) {
+            return; // Cannot cut off single cell.
+        }
+        let p = range.point;
+        let dp = range.dir.point();
+        if self.would_block(range, p - dp) || self.would_block(range, p + dp * range.len) {
+            return;
+        }
+        let est = self.stats.estimate_matches(&self.cw.chars(range).collect());
+        if est != 0_f32 && rs.ranges.insert(range) {
+            rs.est += est;
         }
     }
 
@@ -241,16 +266,17 @@ impl Author {
 
     // TODO: Constructing range sets should abort as soon as the estimate surpasses the lowest one
     //       found so far.
+    // TODO: Prefer ranges that are close to the previous one for more efficient backtracking?
     fn get_range_set(&self) -> Option<RangeSet> {
         let mut result = if self.cw.is_empty() {
             Some(self.get_ranges_for_empty())
         } else {
             self.get_word_range_set()
         };
-        // TODO: Avoid ranges that would isolate clusters of empty cells in the first place.
+        // TODO: Avoid ranges that would isolate clusters of empty cells in the first place. (done)
         //       This could be combined with finding empty clusters, as we're only interested in
         //       their boundaries anyway.
-        if result.is_none() && !self.cw.is_full() /*&& !self.cw.is_empty()*/ {
+        if /*result.is_none() &&*/ !self.cw.is_full() && !self.cw.is_empty() {
             let mut rs = RangeSet::new();
             for point in self.cw.get_smallest_empty_cluster() {
                 let mut p_ranges = self.get_all_ranges(point, Dir::Right);
@@ -264,8 +290,8 @@ impl Author {
                     rs.backtrack_ranges.insert(range);
                 }
             }
-            result = Some(rs);
-            //result_range_set!(result, rs);
+            //result = Some(rs);
+            result_range_set!(result, rs);
         }
         result
     }
@@ -317,6 +343,7 @@ impl Author {
         'main: loop {
             while let Some((range, word)) = iter.next(&self.dicts) {
                 if self.cw.try_word(range.point, range.dir, &word) {
+                    // TODO: Check for isolated empty areas.
                     self.stack.push(StackItem {
                         bt_ranges: bt_ranges,
                         range: range,

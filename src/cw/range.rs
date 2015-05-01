@@ -23,6 +23,17 @@ impl Range {
         PointIter::new(self.point, self.dir, self.len)
     }
 
+    pub fn contains(&self, point: Point) -> bool {
+        match self.dir {
+            Dir::Right => self.point.y == point.y
+                && self.point.x <= point.x
+                && point.x < self.point.x + self.len as i32,
+            Dir::Down => self.point.x == point.x
+                && self.point.y <= point.y
+                && point.y < self.point.y + self.len as i32,
+        }
+    }
+
     pub fn intersects(&self, other: &Range) -> bool {
         let (s0, s1) = (self.point, self.point + self.dir.point() * (self.len - 1));
         let (o0, o1) = (other.point, other.point + other.dir.point() * (other.len - 1));
@@ -40,7 +51,7 @@ impl Range {
 mod tests {
     use super::*;
     use cw::{Dir, Point};
-    
+
     #[test]
     fn test_intersects() {
         let v_range0 = Range { point: Point::new(1, 1), len: 3, dir: Dir::Right };

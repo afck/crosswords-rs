@@ -1,3 +1,4 @@
+mod boundary_iter;
 mod point_iter;
 mod print_iter;
 mod range_iter;
@@ -15,6 +16,7 @@ use std::iter::{repeat, Zip};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::slice;
+use cw::boundary_iter::BoundaryIter;
 use cw::print_iter::PrintIter;
 use cw::range_iter::RangeIter;
 use cw::ranges_iter::RangesIter;
@@ -204,6 +206,21 @@ impl Crosswords {
         point.x >= 0 && point.y >= 0 && point.x < self.width as i32 && point.y < self.height as i32
     }
 
+    pub fn is_range_free(&self, range: Range) -> bool {
+        let dp = range.dir.point();
+        self.contains(range.point) && self.contains(range.point + dp * (range.len - 1))
+            && self.get_border(range.point - dp, range.dir)
+            && range.points().all(|p| self.get_border(p, range.dir))
+    }
+
+    pub fn get_free_range_containing(&self, mut point: Point, dir: Dir) -> Range {
+        let dp = dir.point();
+        while self.contains(point - dp) && self.get_border(point - dp * 2, dir) {
+            point = point - dp;
+        }
+        self.get_free_range_at(point, dir)
+    }
+
     pub fn get_free_range_at(&self, point: Point, dir: Dir) -> Range {
         let dp = dir.point();
         if !self.contains(point - dp)
@@ -307,6 +324,10 @@ impl Crosswords {
     pub fn print_items_solution<'a>(&'a self) -> PrintIter<'a> { PrintIter::new_solution(&self) }
 
     pub fn print_items_puzzle<'a>(&'a self) -> PrintIter<'a> { PrintIter::new_puzzle(&self) }
+
+    pub fn get_boundary_iter_for<'a>(&'a self, point: Point, range: Range) -> BoundaryIter<'a> {
+        BoundaryIter::new(point, range, &self)
+    }
 }
 
 impl Display for Crosswords {

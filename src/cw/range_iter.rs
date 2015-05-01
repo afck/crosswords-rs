@@ -14,8 +14,11 @@ impl<'a> RangeIter<'a> {
 
 impl<'a> Iterator for RangeIter<'a> {
     type Item = char;
+
     fn next(&mut self) -> Option<char> {
         self.pi.next().and_then(|point| self.cw.get_char(point))
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) { self.pi.size_hint() }
 }
 

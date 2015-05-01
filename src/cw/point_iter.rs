@@ -14,6 +14,7 @@ impl PointIter {
 
 impl Iterator for PointIter {
     type Item = Point;
+
     fn next(&mut self) -> Option<Point> {
         if self.len == 0 {
             None
@@ -24,5 +25,7 @@ impl Iterator for PointIter {
             Some(point)
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) { (self.len, Some(self.len)) }
 }
 
