@@ -7,25 +7,17 @@ fn turn(point: Point) -> Point {
     }
 }
 
-fn to_range((point0, point1): (Point, Point)) -> Range {
-    Range {
-        point: if point0.x < point1.x || point0.y < point1.y { point0 } else { point1 },
-        dir: if point0.x == point1.x { Dir::Down } else { Dir::Right },
-        len: 2,
-    }
-}
-
-/// An iterator of all length 2 ranges with one empty cell of the given cluster, and one letter.
+/// An iterator of all pairs of empty and filled cells at the boundary of the given cluster.
 /// It can be given an additional range that it will consider filled with letters.
 pub struct BoundaryIter<'a> {
    last: (Point, Point),
    prev: Option<(Point, Point)>,
-   filled_range: Range,
+   filled_range: Option<Range>,
    cw: &'a Crosswords,
 }
 
 impl<'a> BoundaryIter<'a> {
-    pub fn new(point: Point, filled_range: Range, cw: &'a Crosswords) -> BoundaryIter<'a> {
+    pub fn new(point: Point, filled_range: Option<Range>, cw: &'a Crosswords) -> BoundaryIter<'a> {
         let dp = Dir::Right.point();
         let mut p1 = point;
         while cw.get_char(p1) == Some(BLOCK) {
@@ -41,7 +33,8 @@ impl<'a> BoundaryIter<'a> {
 
     #[inline]
     fn is_free(&self, point: Point) -> bool {
-        self.cw.get_char(point) == Some(BLOCK) && !self.filled_range.contains(point)
+        self.cw.get_char(point) == Some(BLOCK)
+            && self.filled_range.iter().all(|r| !r.contains(point))
     }
 
     fn advance(&mut self) -> bool {
@@ -61,14 +54,14 @@ impl<'a> BoundaryIter<'a> {
 }
 
 impl <'a> Iterator for BoundaryIter<'a> {
-    type Item = Range;
+    type Item = (Point, Point);
 
-    fn next(&mut self) -> Option<Range> {
+    fn next(&mut self) -> Option<(Point, Point)> {
         self.advance() || return None;
         while !self.cw.contains(self.prev.unwrap().1) {
             self.advance() || return None;
         }
-        Some(to_range(self.prev.unwrap()))
+        Some(self.prev.unwrap())
     }
 }
 
@@ -76,12 +69,12 @@ impl <'a> Iterator for BoundaryIter<'a> {
 mod tests {
     use cw::{Crosswords, Dir, Point, Range};
 
-    fn range_r(x: i32, y: i32) -> Option<Range> {
-        Some(Range { point: Point::new(x, y), dir: Dir::Right, len: 2 })
+    fn range_r(x: i32, y: i32) -> Option<(Point, Point)> {
+        Some((Point::new(x, y), Point::new(x + 1, y)))
     }
 
-    fn range_d(x: i32, y: i32) -> Option<Range> {
-        Some(Range { point: Point::new(x, y), dir: Dir::Down, len: 2 })
+    fn range_d(x: i32, y: i32) -> Option<(Point, Point)> {
+        Some((Point::new(x, y), Point::new(x, y + 1)))
     }
 
     #[test]
@@ -93,7 +86,8 @@ mod tests {
         let mut cw = Crosswords::new(5, 3);
         cw.try_word(Point::new(0, 2), Dir::Right, &"AB".chars().collect());
         cw.try_word(Point::new(4, 0), Dir::Down, &"AC".chars().collect());
-        let mut iter = cw.get_boundary_iter_for(Point::new(0, 0), range_r(2, 1).unwrap());
+        let range = Range { point: Point::new(2, 1), dir: Dir::Right, len: 2 };
+        let mut iter = cw.get_boundary_iter_for(Point::new(0, 0), range);
         assert_eq!(range_d(3, 0), iter.next());
         assert_eq!(range_d(2, 0), iter.next());
         assert_eq!(range_r(1, 1), iter.next());

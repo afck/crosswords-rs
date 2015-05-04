@@ -265,18 +265,19 @@ impl Crosswords {
         }
     }
 
-    fn get_empty_cluster(&self, point: Point) -> HashSet<Point> {
-        let mut border = vec!(point);
-        let mut cluster: HashSet<Point> = Some(point).into_iter().collect();
-        while let Some(current) = border.pop() {
-            for p in current.neighbors() {
-                if !cluster.contains(&p) && self.get_char(p) == Some(BLOCK) {
-                    border.push(p);
-                    cluster.insert(p);
-                }
-            }
+    #[inline]
+    fn is_letter(&self, point: Point) -> bool {
+        match self.get_char(point) {
+            None | Some(BLOCK) => false,
+            Some(_) => true,
         }
-        cluster
+    }
+
+    fn is_boundary_point(&self, point: Point) -> bool {
+        self.get_char(point) == Some(BLOCK) && (self.is_letter(point + Point::new(1, 0))
+            || self.is_letter(point + Point::new(-1, 0))
+            || self.is_letter(point + Point::new(0, 1))
+            || self.is_letter(point + Point::new(0, -1)))
     }
 
     pub fn get_smallest_empty_cluster(&self) -> HashSet<Point> {
@@ -285,8 +286,9 @@ impl Crosswords {
         for x in 0..(self.width as i32) {
             for y in 0..(self.height as i32) {
                 let point = Point::new(x, y);
-                if !points.contains(&point) && self.get_char(point) == Some(BLOCK) {
-                    let cluster = self.get_empty_cluster(point);
+                if !points.contains(&point) && self.is_boundary_point(point) {
+                    let cluster: HashSet<Point> = self.get_boundary_iter_for(point, None)
+                        .map(|(p0, _)| p0).collect();
                     if cluster.len() == 1 {
                         return cluster
                     }
@@ -337,7 +339,8 @@ impl Crosswords {
 
     pub fn print_items_puzzle<'a>(&'a self) -> PrintIter<'a> { PrintIter::new_puzzle(&self) }
 
-    pub fn get_boundary_iter_for<'a>(&'a self, point: Point, range: Range) -> BoundaryIter<'a> {
+    pub fn get_boundary_iter_for<'a>(&'a self, point: Point, range: Option<Range>)
+            -> BoundaryIter<'a> {
         BoundaryIter::new(point, range, &self)
     }
 }

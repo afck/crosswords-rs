@@ -8,6 +8,16 @@ pub struct Range {
 }
 
 impl Range {
+    /// Returns a range containing the given points.
+    /// Assumes (but does not check!) that the points are adjacent.
+    pub fn with_points(point0: Point, point1: Point) -> Range {
+        Range {
+            point: if point0.x < point1.x || point0.y < point1.y { point0 } else { point1 },
+            dir: if point0.x == point1.x { Dir::Down } else { Dir::Right },
+            len: 2,
+        }
+    }
+
     pub fn cells_with<F>(point: Point, dir: Dir, mut f: F) -> Range where F: FnMut(Point) -> bool {
         let dp = dir.point();
         let mut p = point;

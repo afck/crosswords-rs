@@ -153,12 +153,12 @@ impl Author {
         }
         let mut c_opts = 0;
         let odir = range.dir.other();
-        let dp = range.dir.other().point();
+        let odp = odir.point();
         for p in range.points() {
             let r0 = Range { point: p, dir: odir, len: 2 };
-            let r1 = Range { point: p - dp, dir: odir, len: 2 };
+            let r1 = Range { point: p - odp, dir: odir, len: 2 };
             // TODO: Also consider stats here?
-            if !self.cw.both_borders(p, range.dir)
+            if !self.cw.both_borders(p, odir)
                     || (!r0.intersects(&filled_range) && self.cw.is_range_free(r0))
                     || (!r1.intersects(&filled_range) && self.cw.is_range_free(r1)) {
                 c_opts += 1;
@@ -175,7 +175,8 @@ impl Author {
             return false;
         }
         // Make sure this range doesn't isolate a cluster of empty cells.
-        if ch == Some(BLOCK) && self.cw.get_boundary_iter_for(point, range).all(|r| {
+        if ch == Some(BLOCK) && self.cw.get_boundary_iter_for(point, Some(range)).all(|(p0, p1)| {
+            let r = Range::with_points(p0, p1);
             !self.cw.is_range_free(r) || (r.dir == range.dir && range.intersects(&r))
         }) {
             return true;
@@ -218,7 +219,7 @@ impl Author {
 
     /// Returns a range set containing all free ranges with the given point in the given direction.
     /// The backtrack range extends one field past the longest of these ranges.
-    fn get_all_ranges(&self, point: Point, dir: Dir) -> RangeSet {
+    fn get_all_ranges(&self, point: Point, dir: Dir, best: &Option<RangeSet>) -> Option<RangeSet> {
         let mut rs = RangeSet::new();
         let range = self.cw.get_free_range_containing(point, dir);
         let dp = dir.point();
@@ -231,11 +232,14 @@ impl Author {
                         dir: dir,
                         len: j - i + 1,
                     });
+                    if best.iter().any(|r| rs.est >= r.est) {
+                        return None;
+                    }
                 }
             }
         }
         rs.backtrack_ranges.insert(range);
-        rs
+        Some(rs)
     }
 
     fn get_word_range_set(&self) -> Option<RangeSet> {
@@ -250,15 +254,18 @@ impl Author {
             if nc > mnc {
                 if mnc == 0 {
                     for p in candidate_points.into_iter() {
-                        let rs = self.get_all_ranges(p, odir);
-                        result_range_set!(result, rs);
+                        if let Some(rs) = self.get_all_ranges(p, odir, &result) {
+                            result_range_set!(result, rs);
+                        }
                     }
                 } else {
                     let mut rsets = candidate_points.into_iter()
-                        .map(|p| self.get_all_ranges(p, odir)).collect::<Vec<_>>();
-                    rsets.sort_by(|rs0, rs1| rs0.partial_cmp(rs1).unwrap_or(Ordering::Equal));
-                    let rs = RangeSet::union(rsets.into_iter().take(mnc + 1));
-                    result_range_set!(result, rs);
+                        .filter_map(|p| self.get_all_ranges(p, odir, &result)).collect::<Vec<_>>();
+                    if rsets.len() >= mnc + 1 {
+                        rsets.sort_by(|rs0, rs1| rs0.partial_cmp(rs1).unwrap_or(Ordering::Equal));
+                        let rs = RangeSet::union(rsets.into_iter().take(mnc + 1));
+                        result_range_set!(result, rs);
+                    }
                 }
             }
         }
@@ -266,7 +273,16 @@ impl Author {
     }
 
     fn range_score(&self, range: &Range) -> i32 {
-        (self.cw.chars(*range).filter(|&c| c != BLOCK).count() + range.len) as i32
+        let penalty = match self.cw.get_range_before(*range).len {
+            1 => 10,
+            2 => 3,
+            _ => 0,
+        } + match self.cw.get_range_after(*range).len {
+            1 => 10,
+            2 => 3,
+            _ => 0,
+        };
+        (self.cw.chars(*range).filter(|&c| c != BLOCK).count() + range.len) as i32 - penalty
     }
 
     fn get_ranges_for_empty(&self) -> RangeSet {
@@ -285,29 +301,36 @@ impl Author {
     //       found so far.
     // TODO: Prefer ranges that are close to the previous one for more efficient backtracking?
     fn get_range_set(&self) -> Option<RangeSet> {
-        let mut result = if self.cw.is_empty() {
-            Some(self.get_ranges_for_empty())
-        } else {
-            self.get_word_range_set()
-        };
+        if self.cw.is_empty() {
+            return Some(self.get_ranges_for_empty());
+        }
+        let mut result = self.get_word_range_set();
         // TODO: Avoid ranges that would isolate clusters of empty cells in the first place. (done)
         //       This could be combined with finding empty clusters, as we're only interested in
         //       their boundaries anyway.
-        if /*result.is_none() &&*/ !self.cw.is_full() && !self.cw.is_empty() {
+        if !self.cw.is_full() && !self.cw.is_empty() {
             let mut rs = RangeSet::new();
             for point in self.cw.get_smallest_empty_cluster() {
-                let mut p_ranges = self.get_all_ranges(point, Dir::Right);
-                p_ranges.extend(self.get_all_ranges(point, Dir::Down));
+                let mut p_ranges = match self.get_all_ranges(point, Dir::Right, &result) {
+                    None => return result,
+                    Some(r) => r,
+                };
+                p_ranges.extend(match self.get_all_ranges(point, Dir::Down, &result) {
+                    None => return result,
+                    Some(r) => r,
+                });
                 for range in p_ranges.ranges.into_iter() {
                     if self.cw.chars(range).any(|c| c != BLOCK) {
                         self.add_range(&mut rs, range);
+                        if result.iter().any(|r| rs.est >= r.est) {
+                            return result;
+                        }
                     }
                 }
                 for range in p_ranges.backtrack_ranges.into_iter() {
                     rs.backtrack_ranges.insert(range);
                 }
             }
-            //result = Some(rs);
             result_range_set!(result, rs);
         }
         result
