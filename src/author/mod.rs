@@ -147,25 +147,50 @@ impl Author {
         None
     }
 
-    #[inline]
-    fn would_block(&self, range: Range, point: Point) -> bool {
-        self.cw.get_char(point) == Some(BLOCK) || return false;
-        // Make sure this range doesn't isolate a cluster of empty cells.
-        self.cw.get_boundary_iter_for(point, range).any(|r| {
-            self.cw.is_range_free(r) && !(r.dir == range.dir && range.intersects(&r))
-        }) || return true;
+    fn is_min_crossing_possible_without(&self, range: Range, filled_range: Range) -> bool {
+        if range.len < 2 {
+            return true;
+        }
         let mut c_opts = 0;
-        for p in self.cw.get_free_range_containing(point, range.dir.other()).points() {
-            let r0 = Range { point: p, dir: range.dir, len: 2 };
-            let r1 = Range { point: p - range.dir.point(), dir: range.dir, len: 2 };
-            if self.cw.get_char(p) != Some(BLOCK)
-                    || (!r0.intersects(&range) && self.cw.is_range_free(r0))
-                    || (!r1.intersects(&range) && self.cw.is_range_free(r1)) {
+        let odir = range.dir.other();
+        let dp = range.dir.other().point();
+        for p in range.points() {
+            let r0 = Range { point: p, dir: odir, len: 2 };
+            let r1 = Range { point: p - dp, dir: odir, len: 2 };
+            // TODO: Also consider stats here?
+            if !self.cw.both_borders(p, range.dir)
+                    || (!r0.intersects(&filled_range) && self.cw.is_range_free(r0))
+                    || (!r1.intersects(&filled_range) && self.cw.is_range_free(r1)) {
                 c_opts += 1;
-                c_opts < self.min_crossing || return false;
+                c_opts < self.min_crossing || return true;
             }
         }
-        true
+        false
+    }
+
+    fn would_block(&self, range: Range, point: Point) -> bool {
+        let ch = self.cw.get_char(point);
+        let dp = range.dir.point();
+        if ch == None || !self.cw.both_borders(point, range.dir) {
+            return false;
+        }
+        // Make sure this range doesn't isolate a cluster of empty cells.
+        if ch == Some(BLOCK) && self.cw.get_boundary_iter_for(point, range).all(|r| {
+            !self.cw.is_range_free(r) || (r.dir == range.dir && range.intersects(&r))
+        }) {
+            return true;
+        }
+        // Make sure it doesn't make min_crossing crossing words impossible for the perpendicular.
+        if self.min_crossing_rel == 1_f32 {
+            return !self.cw.is_range_free(Range {
+                point: range.point - dp, dir: range.dir, len: 3
+            });
+        }
+        let r = match ch {
+            Some(BLOCK) => self.cw.get_free_range_containing(point, range.dir.other()),
+            _ => self.cw.get_word_range_containing(point, range.dir.other()),
+        };
+        !self.is_min_crossing_possible_without(r, range)
     }
 
     /// Returns the maximum number of characters of a word of the given length that don't need to
@@ -176,14 +201,14 @@ impl Author {
     }
 
     fn add_range(&self, rs: &mut RangeSet, range: Range) {
-        if self.min_crossing_rel == 1_f32 && (self.cw.get_range_before(range).len == 1
-                                              || self.cw.get_range_after(range).len == 1) {
-            return; // Cannot cut off single cell.
-        }
         let p = range.point;
         let dp = range.dir.point();
         if self.would_block(range, p - dp) || self.would_block(range, p + dp * range.len) {
             return;
+        }
+        if !self.is_min_crossing_possible_without(self.cw.get_range_before(range), range)
+                || !self.is_min_crossing_possible_without(self.cw.get_range_after(range), range) {
+            return
         }
         let est = self.stats.estimate_matches(&self.cw.chars(range).collect());
         if est != 0_f32 && rs.ranges.insert(range) {
@@ -195,28 +220,21 @@ impl Author {
     /// The backtrack range extends one field past the longest of these ranges.
     fn get_all_ranges(&self, point: Point, dir: Dir) -> RangeSet {
         let mut rs = RangeSet::new();
-        let mut i = 1;
-        let mut j = 0;
+        let range = self.cw.get_free_range_containing(point, dir);
         let dp = dir.point();
-        while self.cw.get_border(point - dp * i, dir) && self.cw.contains(point - dp * (i - 1)) {
-            j = 0;
-            while self.cw.get_border(point + dp * j, dir) && self.cw.contains(point + dp * j) {
-                if i + j > 1 {
+        let t = (point.x - range.point.x + point.y - range.point.y) as usize;
+        for i in 0..(t + 1) {
+            for j in t..range.len {
+                if j - i > 0 {
                     self.add_range(&mut rs, Range {
-                        point: point - dp * (i - 1),
+                        point: range.point + dp * i,
                         dir: dir,
-                        len: i + j,
+                        len: j - i + 1,
                     });
                 }
-                j += 1;
             }
-            i += 1;
         }
-        rs.backtrack_ranges.insert(Range {
-            point: point - dp * (i - 2),
-            dir: dir,
-            len: i + j - 2,
-        });
+        rs.backtrack_ranges.insert(range);
         rs
     }
 
@@ -224,9 +242,8 @@ impl Author {
         let mut result = None;
         for range in self.cw.word_ranges() {
             let odir = range.dir.other();
-            let odp = odir.point();
             let candidate_points: Vec<Point> = range.points().filter(|&p| {
-                self.cw.get_border(p, odir) && self.cw.get_border(p - odp, odir)
+                self.cw.both_borders(p, odir)
             }).collect();
             let nc = candidate_points.len();
             let mnc = self.get_max_noncrossing(range.len);

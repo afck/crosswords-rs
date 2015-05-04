@@ -98,6 +98,11 @@ impl Crosswords {
     }
 
     #[inline]
+    pub fn both_borders(&self, point: Point, dir: Dir) -> bool {
+        self.get_border(point, dir) && self.get_border(point - dir.point(), dir)
+    }
+
+    #[inline]
     fn set_border(&mut self, point: Point, dir: Dir, value: bool) -> bool {
         match dir {
             Dir::Right => match point.coord(self.width - 1, self.height) {
@@ -180,10 +185,9 @@ impl Crosswords {
             return Vec::new();
         }
         let odir = dir.other();
-        let odp = odir.point();
         for p in PointIter::new(point, dir, word.len()) {
             self.set_border(p, dir, true);
-            if self.get_border(p, odir) && self.get_border(p - odp, odir) {
+            if self.both_borders(p, odir) {
                 self.put_char(p, BLOCK);
             }
         }
@@ -297,6 +301,14 @@ impl Crosswords {
     }
 
     pub fn word_ranges<'a>(&'a self) -> RangesIter<'a> { RangesIter::new_words(&self) }
+
+    pub fn get_word_range_containing(&self, mut point: Point, dir: Dir) -> Range {
+        let dp = dir.point();
+        while !self.get_border(point - dp, dir) {
+            point = point - dp;
+        }
+        self.get_word_range_at(point, dir)
+    }
 
     pub fn get_word_range_at(&self, point: Point, dir: Dir) -> Range {
         let dp = dir.point();
