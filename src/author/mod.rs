@@ -6,6 +6,7 @@ use word_stats::WordStats;
 use std::cmp;
 use std::cmp::Ordering;
 use std::collections::HashSet;
+use std::usize;
 use author::word_range_iter::WordRangeIter;
 
 // TODO (some thoughts on extending the algorithm):
@@ -89,6 +90,7 @@ struct StackItem {
     bt_ranges: HashSet<Range>,
     iter: WordRangeIter,
     range: Range,
+    attempts: usize,
 }
 
 pub struct Author {
@@ -96,6 +98,7 @@ pub struct Author {
     cw: Crosswords,
     min_crossing: usize,
     min_crossing_rel: f32,
+    max_attempts: usize,
     stats: WordStats,
     verbose: bool,
     stack: Vec<StackItem>,
@@ -132,6 +135,7 @@ impl Author {
             //min_avg_cells_per_word: 5_f32, // TODO: Make this a command line option.
             min_crossing: min_crossing,
             min_crossing_rel: min_crossing_rel,
+            max_attempts: usize::MAX, //10, // TODO
             stats: WordStats::new(3, &all_words),
             verbose: verbose,
             stack: Vec::new(),
@@ -148,6 +152,9 @@ impl Author {
     }
 
     fn is_min_crossing_possible_without(&self, range: Range, filled_range: Range) -> bool {
+        if self.min_crossing_rel == 1_f32 {
+            return range.len != 1;
+        }
         if range.len < 2 {
             return true;
         }
@@ -170,7 +177,6 @@ impl Author {
 
     fn would_block(&self, range: Range, point: Point) -> bool {
         let ch = self.cw.get_char(point);
-        let dp = range.dir.point();
         if ch == None || !self.cw.both_borders(point, range.dir) {
             return false;
         }
@@ -183,9 +189,7 @@ impl Author {
         }
         // Make sure it doesn't make min_crossing crossing words impossible for the perpendicular.
         if self.min_crossing_rel == 1_f32 {
-            return !self.cw.is_range_free(Range {
-                point: range.point - dp, dir: range.dir, len: 3
-            });
+            return false;
         }
         let r = match ch {
             Some(BLOCK) => self.cw.get_free_range_containing(point, range.dir.other()),
@@ -373,6 +377,7 @@ impl Author {
     //       a set of substantially different solutions.
     pub fn complete_cw(&mut self) -> Option<Crosswords> {
         let mut bt_ranges = HashSet::new();
+        let mut attempts = 0;
         let mut iter = match self.pop() {
             Some(item) => item.iter, // Drop bt_ranges, as iter was successful!.
             None => match self.get_range_set() {
@@ -388,11 +393,13 @@ impl Author {
                         bt_ranges: bt_ranges,
                         range: range,
                         iter: iter,
+                        attempts: attempts + 1,
                     });
                     match self.get_range_set() {
                         Some(rs) => {
                             bt_ranges = rs.backtrack_ranges;
                             iter = WordRangeIter::new(self.get_sorted_ranges(rs.ranges));
+                            attempts = 0;
                         }
                         None => return Some(self.cw.clone()),
                     };
@@ -402,9 +409,11 @@ impl Author {
                 // TODO: Remember which characters not to try again.
                 // TODO: Save the current range set as a "try next" hint. (Is there a way to make
                 //       that work recursively ...?)
-                if Author::range_meets(&item.range, &bt_ranges) {
+                if Author::range_meets(&item.range, &bt_ranges)
+                        && (item.attempts < self.max_attempts || self.stack.len() == 0) {
                     bt_ranges = item.bt_ranges;
                     iter = item.iter;
+                    attempts = item.attempts;
                     continue 'main;
                 }
             }

@@ -105,15 +105,19 @@ pub fn main() {
     let mut best_cw = None;
     let mut best_val = i32::MIN;
     let samples = 1; // TODO
-    for _ in 0..samples {
-        let cw = author.complete_cw().unwrap();
-        let val = evaluate(&cw, &author);
-        print_cw(&cw, &author);
-        if val > best_val {
-            best_cw = Some(cw);
-            best_val = val;
+    for i in 0..samples {
+        if let Some(cw) = author.complete_cw() {
+            let val = evaluate(&cw, &author);
+            if samples > 1 {
+                println!("Solution {} of {}:", i, samples);
+                print_cw(&cw, &author);
+            }
+            if val > best_val {
+                best_cw = Some(cw);
+                best_val = val;
+            }
+            author.pop_to_n_words(1);
         }
-        author.pop_to_n_words(1);
     }
     if let Some(cw) = best_cw {
         println!("Best candidate:");
