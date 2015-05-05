@@ -116,30 +116,32 @@ macro_rules! result_range_set {
 
 impl Author {
     pub fn new(init_cw: &Crosswords,
-               words: &Vec<HashSet<String>>,
                min_crossing: usize,
                min_crossing_rel: f32,
                verbose: bool) -> Author {
-        let mut all_words = HashSet::new();
-        for word_set in words {
-            all_words.extend(word_set.iter().map(|s| s.chars().collect()));
-        }
-        if min_crossing_rel < 0_f32 || min_crossing_rel > 1_f32 {
-            unreachable!("min_crossing_rel must be between 0 and 1");
-        }
-        // TODO: Dicts should be disjoint.
+        (min_crossing_rel >= 0_f32 && min_crossing_rel <= 1_f32)
+            || panic!("min_crossing_rel must be between 0 and 1");
         Author {
-            dicts: words.iter().map(|s| Dict::new(s)).collect(),
+            dicts: Vec::new(),
             cw: init_cw.clone(),
             // TODO: min_fav_words / max_nonfav_words ...
             //min_avg_cells_per_word: 5_f32, // TODO: Make this a command line option.
             min_crossing: min_crossing,
             min_crossing_rel: min_crossing_rel,
             max_attempts: usize::MAX, //10, // TODO
-            stats: WordStats::new(3, &all_words),
+            stats: WordStats::new(3),
             verbose: verbose,
             stack: Vec::new(),
         }
+    }
+
+    pub fn add_dict(&mut self, string_words: &HashSet<String>, min_word_len: usize) {
+        let words = Dict::to_cvec_set(&string_words);
+        let all_words: HashSet<CVec>
+            = self.dicts.iter().flat_map(|dict| dict.all_words().into_iter()).collect();
+        let dict = Dict::new(words.difference(&all_words).filter(|w| w.len() >= min_word_len));
+        self.stats.add_words(dict.all_words().into_iter());
+        self.dicts.push(dict);
     }
 
     pub fn get_word_category(&self, word: &CVec) -> Option<usize> {
@@ -303,7 +305,6 @@ impl Author {
 
     // TODO: Constructing range sets should abort as soon as the estimate surpasses the lowest one
     //       found so far.
-    // TODO: Prefer ranges that are close to the previous one for more efficient backtracking?
     fn get_range_set(&self) -> Option<RangeSet> {
         if self.cw.is_empty() {
             return Some(self.get_ranges_for_empty());

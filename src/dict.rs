@@ -9,17 +9,19 @@ pub struct Dict {
 }
 
 impl Dict {
-    pub fn new(all_string_words: &HashSet<String>) -> Dict {
+    pub fn to_cvec_set(string_words: &HashSet<String>) -> HashSet<CVec> {
+        string_words.iter().filter_map(|string_word| Dict::normalize_word(string_word)).collect()
+    }
+
+    pub fn new<'a, T: Iterator<Item = &'a CVec>>(all_words: T) -> Dict {
         let mut words = Vec::new();
-        let all_words: HashSet<CVec> = all_string_words.iter().filter_map(|string_word|
-            Dict::normalize_word(string_word)).collect();
         for word in all_words {
             while words.len() < word.len() + 1 {
                 words.push(Vec::new());
             }
-            words[word.len()].push(word);
+            words[word.len()].push(word.clone());
         }
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::thread_rng(); // TODO: Make this a parameter?
         for i in 0..words.len() {
             rng.shuffle(&mut words[i][..]);
         }
@@ -53,6 +55,11 @@ impl Dict {
             None => false,
             Some(v) => v.iter().any(|w| w == word),
         }
+    }
+
+    pub fn all_words(&self) -> Vec<CVec> {
+        // TODO: This should just return an iterator.
+        self.words.iter().flat_map(|word_list| word_list.iter().cloned()).collect()
     }
 
     /*pub fn matches(word: &CVec, pattern: &CVec) -> bool {

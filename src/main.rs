@@ -11,15 +11,12 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Result};
 
-fn load_dict(filename: &String, min_word_len: usize) -> Result<HashSet<String>> {
+fn load_dict(filename: &String) -> Result<HashSet<String>> {
     let mut dict = HashSet::new();
     let file = try!(File::open(filename));
     for line in BufReader::new(file).lines() {
         if let Ok(word) = line {
-            // TODO: First replace umlauts, then compare length!
-            if word.chars().count() >= min_word_len {
-                dict.insert(word);
-            }
+            dict.insert(word);
         }
     }
     Ok(dict)
@@ -77,6 +74,7 @@ pub fn main() {
     opts.optflag("h", "help", "print this help menu");
     opts.optflag("v", "verbose", "print the current grid status during computation");
     opts.optopt("m", "min_word_len", "don't use words shorter than that", "INTEGER");
+    opts.optopt("", "samples", "number of grids to create and select the best from", "INTEGER");
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => { m }
         Err(f) => { panic!(f.to_string()) }
@@ -93,23 +91,24 @@ pub fn main() {
         * matches.opt_str("p").unwrap_or("30".to_string()).parse::<f32>().unwrap();
     let min_word_len = matches.opt_str("m").unwrap_or("2".to_string()).parse().unwrap();
     let verbose = matches.opt_present("v");
-    let words = match matches.opt_count("d") {
-        0 => vec!("dict/favorites.txt".to_string(), "dict/dict.txt".to_string()),
-        _ => matches.opt_strs("d")
-    }.into_iter().map(|filename| load_dict(&filename, min_word_len).unwrap()).collect();
     let mut author = Author::new(&Crosswords::new(width, height),
-                             &words,
                              min_crossing,
                              min_crossing_rel,
                              verbose);
+    for dict in match matches.opt_count("d") {
+        0 => vec!("dict/favorites.txt".to_string(), "dict/dict.txt".to_string()),
+        _ => matches.opt_strs("d")
+    }.into_iter().map(|filename| load_dict(&filename).unwrap()) {
+        author.add_dict(&dict, min_word_len);
+    }
     let mut best_cw = None;
     let mut best_val = i32::MIN;
-    let samples = 1; // TODO
+    let samples = matches.opt_str("samples").unwrap_or("1".to_string()).parse::<usize>().unwrap();
     for i in 0..samples {
         if let Some(cw) = author.complete_cw() {
             let val = evaluate(&cw, &author);
             if samples > 1 {
-                println!("Solution {} of {}:", i, samples);
+                println!("Solution {} of {}:", i + 1, samples);
                 print_cw(&cw, &author);
             }
             if val > best_val {

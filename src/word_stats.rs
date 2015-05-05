@@ -1,6 +1,6 @@
 use cw::{BLOCK, CVec};
 use std::cmp;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 #[derive(Hash, Eq, PartialEq)]
 struct WordConstraint {
@@ -15,19 +15,21 @@ pub struct WordStats {
 }
 
 impl WordStats {
-    pub fn new(max_n: usize, words: &HashSet<CVec>) -> WordStats {
-        let mut stats = WordStats {
+    pub fn new(max_n: usize) -> WordStats {
+        WordStats {
             freq: Vec::new(),
             total: Vec::new(),
             max_n: max_n,
-        };
-        for word in words {
-            stats.add_word(word);
         }
-        stats
     }
 
-    pub fn add_word(&mut self, word: &CVec) {
+    pub fn add_words<T: Iterator<Item = CVec>>(&mut self, words: T) {
+        for word in words {
+            self.add_word(word);
+        }
+    }
+
+    pub fn add_word(&mut self, word: CVec) {
         while self.total.len() <= word.len() {
             self.total.push(0);
             self.freq.push(HashMap::new());
