@@ -63,7 +63,6 @@ mod tests {
     use super::*;
     use cw::{Dir, Point, Range};
     use dict::Dict;
-    use std::collections::HashSet;
 
     #[test]
     fn test_range_iter() {
@@ -74,11 +73,11 @@ mod tests {
             Range { point: point, dir: Dir::Right, len: 2 },
         );
         let dicts = vec!(
-            Dict::new(&vec!("FAV".to_string(),
-                            "TOOLONG".to_string()).into_iter().collect::<HashSet<_>>()),
-            Dict::new(&vec!("YO".to_string(),
-                            "FOO".to_string(),
-                            "FOOBAR".to_string()).into_iter().collect::<HashSet<_>>()),
+            Dict::new(vec!("FAV".chars().collect(),
+                           "TOOLONG".chars().collect()).iter()),
+            Dict::new(vec!("YO".chars().collect(),
+                           "FOO".chars().collect(),
+                           "FOOBAR".chars().collect()).iter()),
         );
         let mut iter = WordRangeIter::new(ranges.clone());
         assert_eq!(Some((ranges[1], "FAV".chars().collect())), iter.next(&dicts));

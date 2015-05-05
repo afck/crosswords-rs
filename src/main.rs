@@ -37,7 +37,7 @@ fn evaluate_word(cw: &Crosswords, range: &Range) -> i32 {
     let mut score = range.len as i32;
     let odir = range.dir.other();
     for p in range.points() {
-        if !cw.get_border(p, odir) || !cw.get_border(p - odir.point(), odir) {
+        if cw.both_borders(p, odir) {
             score += 1; // Crosses another word.
         }
     }

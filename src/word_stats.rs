@@ -109,7 +109,8 @@ mod tests {
         let mut words: HashSet<CVec> = HashSet::new();
         words.insert("ABCD".chars().collect());
         words.insert("AXYZ".chars().collect());
-        let ws = WordStats::new(2, &words);
+        let mut ws = WordStats::new(2);
+        ws.add_words(words.into_iter());
         assert_eq!(1_f32, ws.estimate_matches(&"AB##".chars().collect()));
         assert_eq!(1_f32, ws.estimate_matches(&"#B##".chars().collect()));
         assert_eq!(0_f32, ws.estimate_matches(&"#AB#".chars().collect()));

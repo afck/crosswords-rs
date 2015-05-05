@@ -280,22 +280,19 @@ impl Crosswords {
             || self.is_letter(point + Point::new(0, -1)))
     }
 
-    pub fn get_smallest_empty_cluster(&self) -> HashSet<Point> {
+    pub fn get_smallest_boundary(&self) -> HashSet<(Point, Point)> {
         let mut points = HashSet::new();
         let mut smallest = HashSet::new();
         for x in 0..(self.width as i32) {
             for y in 0..(self.height as i32) {
                 let point = Point::new(x, y);
                 if !points.contains(&point) && self.is_boundary_point(point) {
-                    let cluster: HashSet<Point> = self.get_boundary_iter_for(point, None)
-                        .map(|(p0, _)| p0).collect();
-                    if cluster.len() == 1 {
-                        return cluster
+                    let boundary: HashSet<_> = self.get_boundary_iter_for(point, None).collect();
+                    boundary.len() > 1 || return boundary;
+                    if points.is_empty() || boundary.len() < smallest.len() {
+                        smallest = boundary.clone();
                     }
-                    if points.is_empty() || cluster.len() < smallest.len() {
-                        smallest = cluster.clone();
-                    }
-                    points.extend(cluster.into_iter());
+                    points.extend(boundary.into_iter().map(|(p0, _)| p0));
                 }
             }
         }

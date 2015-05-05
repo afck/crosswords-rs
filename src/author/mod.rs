@@ -125,10 +125,9 @@ impl Author {
             dicts: Vec::new(),
             cw: init_cw.clone(),
             // TODO: min_fav_words / max_nonfav_words ...
-            //min_avg_cells_per_word: 5_f32, // TODO: Make this a command line option.
             min_crossing: min_crossing,
             min_crossing_rel: min_crossing_rel,
-            max_attempts: usize::MAX, //10, // TODO
+            max_attempts: usize::MAX, // TODO
             stats: WordStats::new(3),
             verbose: verbose,
             stack: Vec::new(),
@@ -178,10 +177,9 @@ impl Author {
     }
 
     fn would_block(&self, range: Range, point: Point) -> bool {
+        self.cw.both_borders(point, range.dir) || return false;
         let ch = self.cw.get_char(point);
-        if ch == None || !self.cw.both_borders(point, range.dir) {
-            return false;
-        }
+        ch != None || return false;
         // Make sure this range doesn't isolate a cluster of empty cells.
         if ch == Some(BLOCK) && self.cw.get_boundary_iter_for(point, Some(range)).all(|(p0, p1)| {
             let r = Range::with_points(p0, p1);
@@ -210,12 +208,10 @@ impl Author {
     fn add_range(&self, rs: &mut RangeSet, range: Range) {
         let p = range.point;
         let dp = range.dir.point();
-        if self.would_block(range, p - dp) || self.would_block(range, p + dp * range.len) {
-            return;
-        }
-        if !self.is_min_crossing_possible_without(self.cw.get_range_before(range), range)
+        if self.would_block(range, p - dp) || self.would_block(range, p + dp * range.len) 
+                || !self.is_min_crossing_possible_without(self.cw.get_range_before(range), range)
                 || !self.is_min_crossing_possible_without(self.cw.get_range_after(range), range) {
-            return
+            return;
         }
         let est = self.stats.estimate_matches(&self.cw.chars(range).collect());
         if est != 0_f32 && rs.ranges.insert(range) {
@@ -238,9 +234,7 @@ impl Author {
                         dir: dir,
                         len: j - i + 1,
                     });
-                    if best.iter().any(|r| rs.est >= r.est) {
-                        return None;
-                    }
+                    best.iter().all(|r| rs.est < r.est) || return None;
                 }
             }
         }
@@ -303,38 +297,24 @@ impl Author {
         result
     }
 
-    // TODO: Constructing range sets should abort as soon as the estimate surpasses the lowest one
-    //       found so far.
     fn get_range_set(&self) -> Option<RangeSet> {
-        if self.cw.is_empty() {
-            return Some(self.get_ranges_for_empty());
-        }
+        !self.cw.is_empty() || return Some(self.get_ranges_for_empty());
         let mut result = self.get_word_range_set();
-        // TODO: Avoid ranges that would isolate clusters of empty cells in the first place. (done)
-        //       This could be combined with finding empty clusters, as we're only interested in
-        //       their boundaries anyway.
         if !self.cw.is_full() && !self.cw.is_empty() {
             let mut rs = RangeSet::new();
-            for point in self.cw.get_smallest_empty_cluster() {
-                let mut p_ranges = match self.get_all_ranges(point, Dir::Right, &result) {
-                    None => return result,
+            for (p0, p1) in self.cw.get_smallest_boundary() {
+                let dir = if p0.y == p1.y { Dir::Right } else { Dir::Down };
+                let p_ranges = match self.get_all_ranges(p0, dir, &result) {
                     Some(r) => r,
+                    _ => return result,
                 };
-                p_ranges.extend(match self.get_all_ranges(point, Dir::Down, &result) {
-                    None => return result,
-                    Some(r) => r,
-                });
                 for range in p_ranges.ranges.into_iter() {
                     if self.cw.chars(range).any(|c| c != BLOCK) {
                         self.add_range(&mut rs, range);
-                        if result.iter().any(|r| rs.est >= r.est) {
-                            return result;
-                        }
+                        result.iter().all(|r| rs.est < r.est) || return result;
                     }
                 }
-                for range in p_ranges.backtrack_ranges.into_iter() {
-                    rs.backtrack_ranges.insert(range);
-                }
+                rs.backtrack_ranges.extend(p_ranges.backtrack_ranges.into_iter());
             }
             result_range_set!(result, rs);
         }
@@ -373,9 +353,6 @@ impl Author {
             || bt_ranges.iter().any(|r| range.intersects(r) || range.is_adjacent_to(r))
     }
 
-    // TODO: Calling complete_cw() repeatedly should iterate through
-    //       all solutions. Add a method to pop all but the first item to allow iterating through
-    //       a set of substantially different solutions.
     pub fn complete_cw(&mut self) -> Option<Crosswords> {
         let mut bt_ranges = HashSet::new();
         let mut attempts = 0;
