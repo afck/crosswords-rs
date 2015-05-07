@@ -137,9 +137,9 @@ impl Author {
     pub fn add_dict(&mut self, string_words: &HashSet<String>, min_word_len: usize) {
         let words = Dict::to_cvec_set(&string_words);
         let all_words: HashSet<CVec>
-            = self.dicts.iter().flat_map(|dict| dict.all_words().into_iter()).collect();
+            = self.dicts.iter().flat_map(|dict| dict.all_words().cloned()).collect();
         let dict = Dict::new(words.difference(&all_words).filter(|w| w.len() >= min_word_len));
-        self.stats.add_words(dict.all_words().into_iter());
+        self.stats.add_words(dict.all_words().cloned());
         self.dicts.push(dict);
     }
 

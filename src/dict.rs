@@ -57,9 +57,8 @@ impl Dict {
         }
     }
 
-    pub fn all_words(&self) -> Vec<CVec> {
-        // TODO: This should just return an iterator.
-        self.words.iter().flat_map(|word_list| word_list.iter().cloned()).collect()
+    pub fn all_words<'a>(&'a self) -> Box<Iterator<Item = &CVec> + 'a> {
+        Box::new(self.words.iter().flat_map(|list| list.iter()))
     }
 
     /*pub fn matches(word: &CVec, pattern: &CVec) -> bool {
