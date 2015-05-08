@@ -6,55 +6,43 @@ use std::i32;
 
 mod html;
 
-use crosswords_rs::{Author, Crosswords, Range};
+use crosswords_rs::{Author, Crosswords};
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Result};
 
-fn load_dict(filename: &String) -> Result<HashSet<String>> {
-    let mut dict = HashSet::new();
-    let file = try!(File::open(filename));
-    for line in BufReader::new(file).lines() {
-        if let Ok(word) = line {
-            dict.insert(word);
-        }
-    }
-    Ok(dict)
+/// Return the set of lines in the file with the given name.
+fn load_dict(filename: &str) -> Result<HashSet<String>> {
+    File::open(filename)
+        .map(|file| BufReader::new(file).lines().filter_map(Result::ok).collect())
 }
 
+/// Write the crosswords grid to the file with the given name.
 fn write_html_to_file(filename: &str, cw: &Crosswords, solution: bool) -> Result<()> {
     let file = try!(File::create(filename));
     let mut writer = BufWriter::new(file);
     html::write_html(&mut writer, cw, solution)
 }
 
+/// Print the usage help message.
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
     print!("{}", opts.usage(&brief));
 }
 
-fn evaluate_word(cw: &Crosswords, range: &Range) -> i32 {
-    let mut score = range.len as i32;
-    let odir = range.dir.other();
-    for p in range.points() {
-        if cw.both_borders(p, odir) {
-            score += 1; // Crosses another word.
-        }
-    }
-    score
-}
-
+/// Score the crosswords grid according to how many borders and favorite words it contains.
 fn evaluate(cw: &Crosswords, author: &Author) -> i32 {
-    let mut score = 0;
-    for range in cw.word_ranges() {
-        score += evaluate_word(cw, &range);
-        if author.get_word_category(&cw.chars(range).collect()) != Some(0) {
-            score -= 5;
-        }
+    let empty_borders = (cw.max_border_count() - cw.count_borders()) as i32;
+    let mut word_count = 0;
+    let mut word_category_count = 0;
+    for word in cw.get_words() {
+        word_count += 1;
+        word_category_count += author.get_word_category(word).unwrap() as i32;
     }
-    score
+    empty_borders + word_count - 2 * word_category_count
 }
 
+/// Print the crosswords grid and the word count.
 fn print_cw(cw: &Crosswords, author: &Author) {
     println!("{} / {} words are favorites. Score: {}",
         cw.get_words().iter().filter(|w| author.get_word_category(&w) == Some(0)).count(),
@@ -62,9 +50,8 @@ fn print_cw(cw: &Crosswords, author: &Author) {
     println!("{}", cw);
 }
 
-pub fn main() {
-    let args: Vec<String> = env::args().collect();
-    let program = args[0].clone();
+/// Create the Options object containing the list of valid command line options.
+fn create_opts() -> Options {
     let mut opts = Options::new();
     opts.optopt("s", "size", "size of the crosswords grid", "<Width>x<Height>");
     opts.optopt("c", "min_crossing", "minimum number of words crossing any given word", "INTEGER");
@@ -75,21 +62,26 @@ pub fn main() {
     opts.optflag("v", "verbose", "print the current grid status during computation");
     opts.optopt("m", "min_word_len", "don't use words shorter than that", "INTEGER");
     opts.optopt("", "samples", "number of grids to create and select the best from", "INTEGER");
-    let matches = match opts.parse(&args[1..]) {
-        Ok(m) => { m }
-        Err(f) => { panic!(f.to_string()) }
-    };
+    opts
+}
+
+pub fn main() {
+    let args: Vec<String> = env::args().collect();
+    let program = args[0].clone();
+    let opts = create_opts();
+    let matches = opts.parse(&args[1..]).unwrap();
     if matches.opt_present("h") {
         print_usage(&program, opts);
         return;
     }
-    let size: Vec<usize> = matches.opt_str("s").unwrap_or("15x10".to_string()).split('x')
-        .map(|s| s.parse().unwrap()).collect();
+    // TODO: Sanity checks for option values.
+    let size: Vec<usize> = matches.opt_str("s").map_or(vec!(15, 10), |s| s.split('x')
+        .map(|s| s.parse().unwrap()).collect());
     let (width, height): (usize, usize) = (size[0], size[1]);
-    let min_crossing = matches.opt_str("c").unwrap_or("2".to_string()).parse().unwrap();
-    let min_crossing_rel = 0.01
-        * matches.opt_str("p").unwrap_or("30".to_string()).parse::<f32>().unwrap();
-    let min_word_len = matches.opt_str("m").unwrap_or("2".to_string()).parse().unwrap();
+    let min_crossing = matches.opt_str("c").map_or(2, |s| s.parse().unwrap());
+    let min_crossing_rel = 0.01 * matches.opt_str("p").map_or(30_f32, |s| s.parse().unwrap());
+    let min_word_len = matches.opt_str("m").map_or(2, |s| s.parse().unwrap());
+    let samples = matches.opt_str("samples").map_or(1, |s| s.parse().unwrap());
     let verbose = matches.opt_present("v");
     let mut author = Author::new(&Crosswords::new(width, height),
                              min_crossing,
@@ -97,13 +89,11 @@ pub fn main() {
                              verbose);
     for dict in match matches.opt_count("d") {
         0 => vec!("dict/favorites.txt".to_string(), "dict/dict.txt".to_string()),
-        _ => matches.opt_strs("d")
-    }.into_iter().map(|filename| load_dict(&filename).unwrap()) {
+        _ => matches.opt_strs("d"),
+    }.iter().map(|filename| load_dict(filename).unwrap()) {
         author.add_dict(&dict, min_word_len);
     }
-    let mut best_cw = None;
-    let mut best_val = i32::MIN;
-    let samples = matches.opt_str("samples").unwrap_or("1".to_string()).parse::<usize>().unwrap();
+    let (mut best_cw, mut best_val) = (None, i32::MIN);
     for i in 0..samples {
         if let Some(cw) = author.complete_cw() {
             let val = evaluate(&cw, &author);
@@ -119,7 +109,9 @@ pub fn main() {
         }
     }
     if let Some(cw) = best_cw {
-        println!("Best candidate:");
+        if samples > 1 {
+            println!("Best candidate:");
+        }
         print_cw(&cw, &author);
         write_html_to_file("puzzle.html", &cw, false).unwrap();
         write_html_to_file("solution.html", &cw, true).unwrap();

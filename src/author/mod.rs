@@ -201,6 +201,7 @@ impl Author {
     /// Returns the maximum number of characters of a word of the given length that don't need to
     /// be connected to a crossing word.
     fn get_max_noncrossing(&self, len: usize) -> usize {
+        self.min_crossing <= len || return len;
         let max_noncrossing = (1_f32 - self.min_crossing_rel) * (len as f32);
         cmp::min(max_noncrossing as usize, len - self.min_crossing)
     }

@@ -328,8 +328,12 @@ impl Crosswords {
         (0..(self.width * self.height)).all(|p| self.chars[p] != BLOCK)
     }
 
-    fn count_borders(&self) -> usize {
+    pub fn count_borders(&self) -> usize {
         self.right_border.iter().chain(self.down_border.iter()).filter(|&&b| b).count()
+    }
+
+    pub fn max_border_count(&self) -> usize {
+        2 * self.width * self.height - self.width - self.height
     }
 
     pub fn print_items_solution<'a>(&'a self) -> PrintIter<'a> { PrintIter::new_solution(&self) }
@@ -346,7 +350,7 @@ impl Display for Crosswords {
     fn fmt(&self, formatter: &mut Formatter) -> Result<(), fmt::Error> {
         {
             let bc = self.count_borders();
-            let bt = 2 * self.width * self.height - self.width - self.height;
+            let bt = self.max_border_count();
             let br = 100_f32 * (bc as f32) / (bt as f32);
             try!(formatter.write_fmt(format_args!("{} / {} borders ({}%)\n", bc, bt, br)));
         }
