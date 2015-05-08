@@ -28,7 +28,7 @@ impl Dict {
         Dict { words: words }
     }
 
-    fn normalize_word(string_word: &String) -> Option<CVec> {
+    fn normalize_word(string_word: &str) -> Option<CVec> {
         // TODO: Use to_uppercase() once it's stable.
         let word: CVec = string_word.to_ascii_uppercase().trim()
                        .replace("ä", "AE")

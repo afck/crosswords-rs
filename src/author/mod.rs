@@ -389,7 +389,7 @@ impl Author {
                 //       that work recursively ...?)
                 if Author::range_meets(&item.range, &bt_ranges)
                         && (item.attempts < self.max_attempts || self.stack.len() == 0) {
-                    bt_ranges = item.bt_ranges;
+                    bt_ranges.extend(item.bt_ranges);
                     iter = item.iter;
                     attempts = item.attempts;
                     continue 'main;
