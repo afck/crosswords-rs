@@ -7,15 +7,8 @@ use std::i32;
 mod html;
 
 use crosswords_rs::{Author, Crosswords};
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Result};
-
-/// Return the set of lines in the file with the given name.
-fn load_dict(filename: &str) -> Result<HashSet<String>> {
-    File::open(filename)
-        .map(|file| BufReader::new(file).lines().filter_map(Result::ok).collect())
-}
 
 /// Write the crosswords grid to the file with the given name.
 fn write_html_to_file(filename: &str, cw: &Crosswords, solution: bool) -> Result<()> {
@@ -87,11 +80,13 @@ pub fn main() {
                              min_crossing,
                              min_crossing_rel,
                              verbose);
-    for dict in match matches.opt_count("d") {
+    for filename in match matches.opt_count("d") {
         0 => vec!("dict/favorites.txt".to_string(), "dict/dict.txt".to_string()),
         _ => matches.opt_strs("d"),
-    }.iter().map(|filename| load_dict(filename).unwrap()) {
-        author.add_dict(&dict, min_word_len);
+    }.iter() {
+        let get_file_lines = |filename| BufReader::new(filename).lines().filter_map(Result::ok);
+        let file_lines = File::open(filename).map(get_file_lines).unwrap();
+        author.add_dict(file_lines, min_word_len);
     }
     let (mut best_cw, mut best_val) = (None, i32::MIN);
     for i in 0..samples {

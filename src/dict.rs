@@ -9,8 +9,8 @@ pub struct Dict {
 }
 
 impl Dict {
-    pub fn to_cvec_set(string_words: &HashSet<String>) -> HashSet<CVec> {
-        string_words.iter().filter_map(|string_word| Dict::normalize_word(string_word)).collect()
+    pub fn to_cvec_set<T: Iterator<Item = String>>(string_words: T) -> HashSet<CVec> {
+        string_words.filter_map(|string_word| Dict::normalize_word(string_word)).collect()
     }
 
     pub fn new<'a, T: Iterator<Item = &'a CVec>>(all_words: T) -> Dict {
@@ -28,7 +28,7 @@ impl Dict {
         Dict { words: words }
     }
 
-    fn normalize_word(string_word: &str) -> Option<CVec> {
+    fn normalize_word(string_word: String) -> Option<CVec> {
         // TODO: Use to_uppercase() once it's stable.
         let word: CVec = string_word.to_ascii_uppercase().trim()
                        .replace("ä", "AE")

@@ -23,13 +23,13 @@ impl WordStats {
         }
     }
 
-    pub fn add_words<T: Iterator<Item = CVec>>(&mut self, words: T) {
+    pub fn add_words<'a, T: Iterator<Item = &'a CVec>>(&mut self, words: T) {
         for word in words {
             self.add_word(word);
         }
     }
 
-    pub fn add_word(&mut self, word: CVec) {
+    pub fn add_word(&mut self, word: &CVec) {
         while self.total.len() <= word.len() {
             self.total.push(0);
             self.freq.push(HashMap::new());
@@ -71,28 +71,24 @@ impl WordStats {
     }
 
     pub fn estimate_matches(&self, pattern: &CVec) -> f32 {
-        let total = *self.total.get(pattern.len()).unwrap_or(&0) as f32;
+        let len = pattern.len();
+        let total = *self.total.get(len).unwrap_or(&0) as f32;
         if total == 0_f32 {
             return 0_f32;
         }
         let mut probability = 1_f32;
-        let (mut pos, mut len) = (0, 0);
-        while pos + len < pattern.len() {
-            if pattern[pos + len] == BLOCK {
-                if len > 0 {
-                    probability *= self.get_estimate(&pattern[pos..(pos + len)], pos, pattern.len()) / total;
-                    if probability == 0_f32 {
-                        return 0_f32;
-                    }
+        let mut pos = 0;
+        for i in pattern.iter().enumerate()
+                .filter(|&(_, ch)| ch == &BLOCK)
+                .map(|(i, _)| i)
+                .chain(Some(len).into_iter()) {
+            if i > pos {
+                probability *= self.get_estimate(&pattern[pos..i], pos, len) / total;
+                if probability == 0_f32 {
+                    return 0_f32;
                 }
-                pos = pos + len + 1;
-                len = 0;
-            } else {
-                len += 1;
             }
-        }
-        if len > 0 {
-            probability *= self.get_estimate(&pattern[pos..(pos + len)], pos, pattern.len()) / total;
+            pos = i + 1;
         }
         probability * total
     }
@@ -110,7 +106,7 @@ mod tests {
         words.insert("ABCD".chars().collect());
         words.insert("AXYZ".chars().collect());
         let mut ws = WordStats::new(2);
-        ws.add_words(words.into_iter());
+        ws.add_words(words.iter());
         assert_eq!(1_f32, ws.estimate_matches(&"AB##".chars().collect()));
         assert_eq!(1_f32, ws.estimate_matches(&"#B##".chars().collect()));
         assert_eq!(0_f32, ws.estimate_matches(&"#AB#".chars().collect()));

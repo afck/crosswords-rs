@@ -124,32 +124,29 @@ impl Author {
         Author {
             dicts: Vec::new(),
             cw: init_cw.clone(),
-            // TODO: min_fav_words / max_nonfav_words ...
             min_crossing: min_crossing,
             min_crossing_rel: min_crossing_rel,
             max_attempts: usize::MAX, // TODO
             stats: WordStats::new(3),
             verbose: verbose,
             stack: Vec::new(),
+            // TODO: min_fav_words / max_nonfav_words ...?
         }
     }
 
-    pub fn add_dict(&mut self, string_words: &HashSet<String>, min_word_len: usize) {
-        let words = Dict::to_cvec_set(&string_words);
-        let all_words: HashSet<CVec>
-            = self.dicts.iter().flat_map(|dict| dict.all_words().cloned()).collect();
-        let dict = Dict::new(words.difference(&all_words).filter(|w| w.len() >= min_word_len));
-        self.stats.add_words(dict.all_words().cloned());
+    /// Add a dictionary with the given words to the end of the dictionary list.
+    pub fn add_dict<T: Iterator<Item = String>>(&mut self, string_words: T, min_word_len: usize) {
+        let existing_words = self.dicts.iter().flat_map(Dict::all_words).cloned().collect();
+        let dict = Dict::new(Dict::to_cvec_set(string_words)
+                .difference(&existing_words)
+                .filter(|word| word.len() >= min_word_len));
+        self.stats.add_words(dict.all_words());
         self.dicts.push(dict);
     }
 
+    /// Return the index of the dictionary containing the given word, or None if not found.
     pub fn get_word_category(&self, word: &CVec) -> Option<usize> {
-        for (i, dict) in self.dicts.iter().enumerate() {
-            if dict.contains(word) {
-                return Some(i);
-            }
-        }
-        None
+        self.dicts.iter().position(|dict| dict.contains(word))
     }
 
     fn is_min_crossing_possible_without(&self, range: Range, filled_range: Range) -> bool {
@@ -198,20 +195,20 @@ impl Author {
         !self.is_min_crossing_possible_without(r, range)
     }
 
-    /// Returns the maximum number of characters of a word of the given length that don't need to
+    /// Return the maximum number of characters of a word of the given length that don't need to
     /// be connected to a crossing word.
     fn get_max_noncrossing(&self, len: usize) -> usize {
         self.min_crossing <= len || return len;
-        let max_noncrossing = (1_f32 - self.min_crossing_rel) * (len as f32);
-        cmp::min(max_noncrossing as usize, len - self.min_crossing)
+        let rel_min_crossing = (self.min_crossing_rel * (len as f32)) as usize;
+        len - cmp::max(rel_min_crossing, self.min_crossing)
     }
 
     fn add_range(&self, rs: &mut RangeSet, range: Range) {
         let p = range.point;
         let dp = range.dir.point();
         if self.would_block(range, p - dp) || self.would_block(range, p + dp * range.len) 
-                || !self.is_min_crossing_possible_without(self.cw.get_range_before(range), range)
-                || !self.is_min_crossing_possible_without(self.cw.get_range_after(range), range) {
+                || !self.is_min_crossing_possible_without(self.cw.get_range_before(&range), range)
+                || !self.is_min_crossing_possible_without(self.cw.get_range_after(&range), range) {
             return;
         }
         let est = self.stats.estimate_matches(&self.cw.chars(range).collect());
@@ -273,17 +270,18 @@ impl Author {
         result
     }
 
+    fn get_range_len_penalty(range: Range) -> i32 {
+        match range.len {
+            1 => 10,
+            2 => 3,
+            _ => 0,
+        }
+    }
+
     fn range_score(&self, range: &Range) -> i32 {
-        let penalty = match self.cw.get_range_before(*range).len {
-            1 => 10,
-            2 => 3,
-            _ => 0,
-        } + match self.cw.get_range_after(*range).len {
-            1 => 10,
-            2 => 3,
-            _ => 0,
-        };
-        (self.cw.chars(*range).filter(|&c| c != BLOCK).count() + range.len) as i32 - penalty
+        (self.cw.chars(*range).filter(|&c| c != BLOCK).count() + range.len) as i32
+            - Author::get_range_len_penalty(self.cw.get_range_before(range))
+            - Author::get_range_len_penalty(self.cw.get_range_after(range))
     }
 
     fn get_ranges_for_empty(&self) -> RangeSet {
@@ -299,26 +297,25 @@ impl Author {
     }
 
     fn get_range_set(&self) -> Option<RangeSet> {
-        !self.cw.is_empty() || return Some(self.get_ranges_for_empty());
+        self.cw.is_empty() && return Some(self.get_ranges_for_empty());
         let mut result = self.get_word_range_set();
-        if !self.cw.is_full() && !self.cw.is_empty() {
-            let mut rs = RangeSet::new();
-            for (p0, p1) in self.cw.get_smallest_boundary() {
-                let dir = if p0.y == p1.y { Dir::Right } else { Dir::Down };
-                let p_ranges = match self.get_all_ranges(p0, dir, &result) {
-                    Some(r) => r,
-                    _ => return result,
-                };
-                for range in p_ranges.ranges.into_iter() {
-                    if self.cw.chars(range).any(|c| c != BLOCK) {
-                        self.add_range(&mut rs, range);
-                        result.iter().all(|r| rs.est < r.est) || return result;
-                    }
+        self.cw.is_full() && return result;
+        let mut rs = RangeSet::new();
+        for (p0, p1) in self.cw.get_smallest_boundary() {
+            let dir = if p0.y == p1.y { Dir::Right } else { Dir::Down };
+            let p_ranges = match self.get_all_ranges(p0, dir, &result) {
+                Some(r) => r,
+                _ => return result,
+            };
+            for range in p_ranges.ranges.into_iter() {
+                if self.cw.chars(range).any(|c| c != BLOCK) {
+                    self.add_range(&mut rs, range);
+                    result.iter().all(|r| rs.est < r.est) || return result;
                 }
-                rs.backtrack_ranges.extend(p_ranges.backtrack_ranges.into_iter());
             }
-            result_range_set!(result, rs);
+            rs.backtrack_ranges.extend(p_ranges.backtrack_ranges.into_iter());
         }
+        result_range_set!(result, rs);
         result
     }
 
@@ -367,7 +364,6 @@ impl Author {
         'main: loop {
             while let Some((range, word)) = iter.next(&self.dicts) {
                 if self.cw.try_word(range.point, range.dir, &word) {
-                    // TODO: Check for isolated empty areas.
                     self.stack.push(StackItem {
                         bt_ranges: bt_ranges,
                         range: range,

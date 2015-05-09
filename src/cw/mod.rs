@@ -235,7 +235,7 @@ impl Crosswords {
         }
     }
 
-    pub fn get_range_after(&self, range: Range) -> Range {
+    pub fn get_range_after(&self, range: &Range) -> Range {
         let dp = range.dir.point();
         let mut len = 0;
         let mut p = range.point + dp * range.len;
@@ -250,7 +250,7 @@ impl Crosswords {
         }
     }
 
-    pub fn get_range_before(&self, range: Range) -> Range {
+    pub fn get_range_before(&self, range: &Range) -> Range {
         let dp = range.dir.point();
         let mut len = 0;
         let mut p = range.point;
