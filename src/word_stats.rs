@@ -1,6 +1,9 @@
 use cw::{BLOCK, CVec};
 use std::cmp;
 use std::collections::HashMap;
+use std::iter;
+use std::slice;
+use std::ops;
 
 #[derive(Hash, Eq, PartialEq)]
 enum WordConstraint {
@@ -11,6 +14,10 @@ enum WordConstraint {
     NGramAt(CVec, usize, usize),
 }
 
+type NgramIter<'a> = iter::Map<
+            iter::Zip<slice::Windows<'a, char>, iter::Enumerate<iter::Repeat<usize>>>,
+            fn((&[char], (usize, usize))) -> WordConstraint>;
+
 impl WordConstraint {
     fn with_ngram(ngram: &[char], pos: usize, len: usize) -> WordConstraint {
         match ngram.len() {
@@ -20,6 +27,23 @@ impl WordConstraint {
             3 => WordConstraint::TrigramAt([ngram[0], ngram[1], ngram[2]], pos, len),
             _ => WordConstraint::NGramAt(ngram.to_vec(), pos, len),
         }
+    }
+
+    fn ngram_constraints<'a>(word: &'a CVec, n: usize) -> NgramIter<'a> {
+        fn to_constraint((ngram, (pos, len)): (&[char], (usize, usize))) -> WordConstraint {
+            WordConstraint::with_ngram(ngram, pos, len)
+        };
+        word.windows(n).zip(iter::repeat(word.len()).enumerate()).map(to_constraint)
+    }
+
+    fn all_constraints<'a>(word: &'a CVec, max_n: usize) -> iter::FlatMap<
+            iter::Zip<iter::Repeat<&'a CVec>, ops::Range<usize>>,
+            NgramIter<'a>,
+            fn((&'a Vec<char>, usize)) -> NgramIter<'a>> {
+        fn to_iter<'a>((word, n): (&'a CVec, usize)) -> NgramIter<'a> {
+            WordConstraint::ngram_constraints(word, n)
+        };
+        iter::repeat(word).zip(1..(max_n + 1)).flat_map(to_iter)
     }
 }
 
@@ -57,10 +81,8 @@ impl WordStats {
 
     pub fn add_word(&mut self, word: &CVec) {
         self.increase(WordConstraint::Length(word.len()));
-        for n in 1..(self.max_n + 1) {
-            for (pos, ngram) in word.windows(n).enumerate() {
-                self.increase(WordConstraint::with_ngram(ngram, pos, word.len()));
-            }
+        for wc in WordConstraint::all_constraints(word, self.max_n) {
+            self.increase(wc);
         }
     }
 
