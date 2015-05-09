@@ -3,22 +3,35 @@ use std::cmp;
 use std::collections::HashMap;
 
 #[derive(Hash, Eq, PartialEq)]
-struct WordConstraint {
-    ngram: CVec,
-    pos: usize,
+enum WordConstraint {
+    Length(usize),
+    CharAt(char, usize, usize),
+    BigramAt([char; 2], usize, usize),
+    TrigramAt([char; 3], usize, usize),
+    NGramAt(CVec, usize, usize),
+}
+
+impl WordConstraint {
+    fn with_ngram(ngram: &[char], pos: usize, len: usize) -> WordConstraint {
+        match ngram.len() {
+            0 => WordConstraint::Length(len),
+            1 => WordConstraint::CharAt(ngram[0], pos, len),
+            2 => WordConstraint::BigramAt([ngram[0], ngram[1]], pos, len),
+            3 => WordConstraint::TrigramAt([ngram[0], ngram[1], ngram[2]], pos, len),
+            _ => WordConstraint::NGramAt(ngram.to_vec(), pos, len),
+        }
+    }
 }
 
 pub struct WordStats {
-    freq: Vec<HashMap<WordConstraint, usize>>,
-    total: Vec<usize>,
+    freq: HashMap<WordConstraint, usize>,
     max_n: usize,
 }
 
 impl WordStats {
     pub fn new(max_n: usize) -> WordStats {
         WordStats {
-            freq: Vec::new(),
-            total: Vec::new(),
+            freq: HashMap::new(),
             max_n: max_n,
         }
     }
@@ -29,26 +42,26 @@ impl WordStats {
         }
     }
 
-    pub fn add_word(&mut self, word: &CVec) {
-        while self.total.len() <= word.len() {
-            self.total.push(0);
-            self.freq.push(HashMap::new());
-        }
-        self.total[word.len()] += 1;
-        for n in 1..(self.max_n + 1) {
-            for (pos, ngram) in word.windows(n).enumerate() {
-                let wc = WordConstraint { ngram: ngram.to_vec(), pos: pos };
-                let prev_freq = *self.freq[word.len()].get(&wc).unwrap_or(&0);
-                self.freq[word.len()].insert(wc, prev_freq + 1);
-            }
-        }
-    }
+    fn get(&self, wc: &WordConstraint) -> usize { *self.freq.get(wc).unwrap_or(&0) }
+    
+    fn get_total(&self, len: usize) -> usize { self.get(&WordConstraint::Length(len)) }
 
     fn get_freq(&self, ngram: &[char], pos: usize, len: usize) -> usize {
-        *self.freq[len].get(&WordConstraint {
-            pos: pos,
-            ngram: ngram.to_vec(),
-        }).unwrap_or(&0)
+        self.get(&WordConstraint::with_ngram(ngram, pos, len))
+    }
+
+    fn increase(&mut self, wc: WordConstraint) {
+        let prev_freq = self.get(&wc);
+        self.freq.insert(wc, prev_freq + 1);
+    }
+
+    pub fn add_word(&mut self, word: &CVec) {
+        self.increase(WordConstraint::Length(word.len()));
+        for n in 1..(self.max_n + 1) {
+            for (pos, ngram) in word.windows(n).enumerate() {
+                self.increase(WordConstraint::with_ngram(ngram, pos, word.len()));
+            }
+        }
     }
 
     fn get_estimate(&self, subword: &[char], pos: usize, len: usize) -> f32 {
@@ -72,7 +85,7 @@ impl WordStats {
 
     pub fn estimate_matches(&self, pattern: &CVec) -> f32 {
         let len = pattern.len();
-        let total = *self.total.get(len).unwrap_or(&0) as f32;
+        let total = self.get_total(len) as f32;
         if total == 0_f32 {
             return 0_f32;
         }
