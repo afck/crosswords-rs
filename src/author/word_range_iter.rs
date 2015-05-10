@@ -2,14 +2,17 @@ use cw::{CVec, Range};
 use dict::Dict;
 
 pub struct WordRangeIter {
-    ranges: Vec<Range>,
+    ranges: Vec<(Range, CVec)>,
     range_i: usize,
     dict_i: usize,
     word_i: usize,
 }
 
 impl WordRangeIter {
-    pub fn new(ranges: Vec<Range>) -> WordRangeIter {
+    pub fn new(ranges: Vec<(Range, CVec)>) -> WordRangeIter {
+        // TODO: Keep the reference to the dictionaries, return only matching words and become an
+        //       actual Iterator. To be able to borrow the reference, Author probably also needs to
+        //       keep the dictionaries in an immutable reference instead.
         WordRangeIter {
             ranges: ranges,
             word_i: 0,
@@ -22,7 +25,7 @@ impl WordRangeIter {
     fn get_word(&self, dicts: &Vec<Dict>) -> Option<CVec> {
         let range = match self.ranges.get(self.range_i) {
             None => return None,
-            Some(r) => r,
+            Some(r) => r.0,
         };
         dicts.get(self.dict_i).and_then(|dict| dict.get_word(range.len, self.word_i))
     }
@@ -49,7 +52,7 @@ impl WordRangeIter {
             oword = self.get_word(dicts);
         }
         if let Some(word) = oword {
-            let range = self.ranges[self.range_i];
+            let range = self.ranges[self.range_i].0;
             self.advance(dicts);
             Some((range, word))
         } else {
@@ -68,9 +71,9 @@ mod tests {
     fn test_range_iter() {
         let point = Point::new(0, 0);
         let ranges = vec!(
-            Range { point: point, dir: Dir::Right, len: 6 },
-            Range { point: point, dir: Dir::Right, len: 3 },
-            Range { point: point, dir: Dir::Right, len: 2 },
+            (Range { point: point, dir: Dir::Right, len: 6 }, "######".chars().collect()),
+            (Range { point: point, dir: Dir::Right, len: 3 }, "###".chars().collect()),
+            (Range { point: point, dir: Dir::Right, len: 2 }, "##".chars().collect()),
         );
         let dicts = vec!(
             Dict::new(vec!("FAV".chars().collect(),
@@ -80,9 +83,9 @@ mod tests {
                            "FOOBAR".chars().collect()).iter()),
         );
         let mut iter = WordRangeIter::new(ranges.clone());
-        assert_eq!(Some((ranges[1], "FAV".chars().collect())), iter.next(&dicts));
-        assert_eq!(Some((ranges[0], "FOOBAR".chars().collect())), iter.next(&dicts));
-        assert_eq!(Some((ranges[1], "FOO".chars().collect())), iter.next(&dicts));
-        assert_eq!(Some((ranges[2], "YO".chars().collect())), iter.next(&dicts));
+        assert_eq!(Some((ranges[1].0, "FAV".chars().collect())), iter.next(&dicts));
+        assert_eq!(Some((ranges[0].0, "FOOBAR".chars().collect())), iter.next(&dicts));
+        assert_eq!(Some((ranges[1].0, "FOO".chars().collect())), iter.next(&dicts));
+        assert_eq!(Some((ranges[2].0, "YO".chars().collect())), iter.next(&dicts));
     }
 }

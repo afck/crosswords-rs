@@ -319,9 +319,10 @@ impl Author {
         result
     }
 
-    fn get_sorted_ranges(&self, range_set: HashSet<Range>) -> Vec<Range> {
-        let mut ranges: Vec<Range> = range_set.into_iter().collect();
-        ranges.sort_by(|r0, r1| self.range_score(r1).cmp(&self.range_score(r0)));
+    fn get_sorted_ranges(&self, range_set: HashSet<Range>) -> Vec<(Range, CVec)> {
+        let mut ranges: Vec<(Range, CVec)> = range_set.into_iter()
+            .map(|range| (range, self.cw.chars(range).collect())).collect();
+        ranges.sort_by(|r0, r1| self.range_score(&r1.0).cmp(&self.range_score(&r0.0)));
         ranges
     }
 
