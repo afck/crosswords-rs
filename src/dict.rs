@@ -108,11 +108,6 @@ impl Dict {
         self.lists.get(wc).unwrap_or(&self.empty_list)
     }
 
-    // TODO: Index words by n-grams for faster pattern matching.
-    pub fn get_word(&self, len: usize, n: usize) -> Option<CVec> {
-        self.words.get(len).and_then(|w| w.get(n)).cloned()
-    }
-
     pub fn contains(&self, word: &CVec) -> bool {
         match self.words.get(word.len()) {
             None => false,
@@ -162,10 +157,11 @@ impl Dict {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test() {
-        let words = Dict::to_cvec_set(vec!("FOO", "FOOBAR", "FOE", "TOE").into_iter().map(|s| s.to_string()));
+        let words_vec = vec!("FOO", "FOOBAR", "FOE", "TOE");
+        let words = Dict::to_cvec_set(words_vec.into_iter().map(|s| s.to_string()));
         let dict = Dict::new(words.iter());
         assert_eq!(2, dict.matching_words("#OE".chars().collect()).count());
         assert_eq!(1, dict.matching_words("F#E".chars().collect()).count());

@@ -6,7 +6,8 @@ use std::i32;
 
 mod html;
 
-use crosswords_rs::{Author, Crosswords};
+use crosswords_rs::{Author, Crosswords, Dict};
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Result};
 
@@ -58,6 +59,20 @@ fn create_opts() -> Options {
     opts
 }
 
+/// Return a list of dictionaries read from the given filenames.
+fn get_dicts<T: Iterator<Item = String>>(filenames: T, min_word_len: usize) -> Vec<Dict> {
+    let mut existing_words = HashSet::new();
+    filenames.map(|filename| {
+        let get_file_lines = |filename| BufReader::new(filename).lines().filter_map(Result::ok);
+        let file_lines = File::open(filename).map(get_file_lines).unwrap();
+        let dict = Dict::new(Dict::to_cvec_set(file_lines)
+                .difference(&existing_words)
+                .filter(|word| word.len() >= min_word_len));
+        existing_words.extend(dict.all_words().cloned());
+        dict
+    }).collect()
+}
+
 pub fn main() {
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
@@ -76,18 +91,15 @@ pub fn main() {
     let min_word_len = matches.opt_str("m").map_or(2, |s| s.parse().unwrap());
     let samples = matches.opt_str("samples").map_or(1, |s| s.parse().unwrap());
     let verbose = matches.opt_present("v");
-    let mut author = Author::new(&Crosswords::new(width, height),
-                             min_crossing,
-                             min_crossing_rel,
-                             verbose);
-    for filename in match matches.opt_count("d") {
+    let dicts = get_dicts(match matches.opt_count("d") {
         0 => vec!("dict/favorites.txt".to_string(), "dict/dict.txt".to_string()),
         _ => matches.opt_strs("d"),
-    }.iter() {
-        let get_file_lines = |filename| BufReader::new(filename).lines().filter_map(Result::ok);
-        let file_lines = File::open(filename).map(get_file_lines).unwrap();
-        author.add_dict(file_lines, min_word_len);
-    }
+    }.into_iter(), min_word_len);
+    let mut author = Author::new(&Crosswords::new(width, height),
+                                 min_crossing,
+                                 min_crossing_rel,
+                                 &dicts,
+                                 verbose);
     let (mut best_cw, mut best_val) = (None, i32::MIN);
     for i in 0..samples {
         if let Some(cw) = author.complete_cw() {

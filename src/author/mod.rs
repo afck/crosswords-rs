@@ -86,22 +86,22 @@ impl RangeSet {
     }
 }
 
-struct StackItem {
+struct StackItem<'a> {
     bt_ranges: HashSet<Range>,
-    iter: WordRangeIter,
+    iter: WordRangeIter<'a>,
     range: Range,
     attempts: usize,
 }
 
-pub struct Author {
-    dicts: Vec<Dict>,
+pub struct Author<'a> {
+    dicts: &'a Vec<Dict>,
     cw: Crosswords,
     min_crossing: usize,
     min_crossing_rel: f32,
     max_attempts: usize,
     stats: WordStats,
     verbose: bool,
-    stack: Vec<StackItem>,
+    stack: Vec<StackItem<'a>>,
 }
 
 // TODO: Find a saner way to do this.
@@ -114,34 +114,29 @@ macro_rules! result_range_set {
     };
 }
 
-impl Author {
+impl<'a> Author<'a> {
     pub fn new(init_cw: &Crosswords,
                min_crossing: usize,
                min_crossing_rel: f32,
-               verbose: bool) -> Author {
+               dicts: &'a Vec<Dict>,
+               verbose: bool) -> Author<'a> {
         (min_crossing_rel >= 0_f32 && min_crossing_rel <= 1_f32)
             || panic!("min_crossing_rel must be between 0 and 1");
+        let mut stats = WordStats::new(3);
+        for dict in dicts {
+            stats.add_words(dict.all_words());
+        }
         Author {
-            dicts: Vec::new(),
+            dicts: dicts,
             cw: init_cw.clone(),
             min_crossing: min_crossing,
             min_crossing_rel: min_crossing_rel,
-            max_attempts: usize::MAX, // TODO
-            stats: WordStats::new(3),
+            max_attempts: 5,// usize::MAX, // TODO
+            stats: stats,
             verbose: verbose,
             stack: Vec::new(),
             // TODO: min_fav_words / max_nonfav_words ...?
         }
-    }
-
-    /// Add a dictionary with the given words to the end of the dictionary list.
-    pub fn add_dict<T: Iterator<Item = String>>(&mut self, string_words: T, min_word_len: usize) {
-        let existing_words = self.dicts.iter().flat_map(Dict::all_words).cloned().collect();
-        let dict = Dict::new(Dict::to_cvec_set(string_words)
-                .difference(&existing_words)
-                .filter(|word| word.len() >= min_word_len));
-        self.stats.add_words(dict.all_words());
-        self.dicts.push(dict);
     }
 
     /// Return the index of the dictionary containing the given word, or None if not found.
@@ -151,7 +146,7 @@ impl Author {
 
     fn is_min_crossing_possible_without(&self, range: Range, filled_range: Range) -> bool {
         if self.min_crossing_rel == 1_f32 {
-            return range.len != 1;
+            return range.len == 0 || range.len >= self.stats.get_min_len();
         }
         if range.len < 2 {
             return true;
@@ -326,7 +321,7 @@ impl Author {
         ranges
     }
 
-    fn pop(&mut self) -> Option<StackItem> {
+    fn pop(&mut self) -> Option<StackItem<'a>> {
         let opt_item = self.stack.pop();
         if let Some(ref item) = opt_item {
             let range = item.range;
@@ -358,12 +353,12 @@ impl Author {
         let mut iter = match self.pop() {
             Some(item) => item.iter, // Drop bt_ranges, as iter was successful!.
             None => match self.get_range_set() {
-                Some(rs) => WordRangeIter::new(self.get_sorted_ranges(rs.ranges)),
+                Some(rs) => WordRangeIter::new(self.get_sorted_ranges(rs.ranges), self.dicts),
                 None => return None,
             },
         };
         'main: loop {
-            while let Some((range, word)) = iter.next(&self.dicts) {
+            while let Some((range, word)) = iter.next() {
                 if self.cw.try_word(range.point, range.dir, &word) {
                     self.stack.push(StackItem {
                         bt_ranges: bt_ranges,
@@ -374,7 +369,8 @@ impl Author {
                     match self.get_range_set() {
                         Some(rs) => {
                             bt_ranges = rs.backtrack_ranges;
-                            iter = WordRangeIter::new(self.get_sorted_ranges(rs.ranges));
+                            iter = WordRangeIter::new(self.get_sorted_ranges(rs.ranges),
+                                                      self.dicts);
                             attempts = 0;
                         }
                         None => return Some(self.cw.clone()),

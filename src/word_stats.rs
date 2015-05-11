@@ -1,11 +1,13 @@
 use cw::{BLOCK, CVec};
 use std::cmp;
 use std::collections::HashMap;
+use std::usize;
 use word_constraint::WordConstraint;
 
 pub struct WordStats {
     freq: HashMap<WordConstraint, usize>,
     max_n: usize,
+    min_len: usize,
 }
 
 impl WordStats {
@@ -13,6 +15,7 @@ impl WordStats {
         WordStats {
             freq: HashMap::new(),
             max_n: max_n,
+            min_len: usize::MAX,
         }
     }
 
@@ -26,6 +29,8 @@ impl WordStats {
 
     fn get_total(&self, len: usize) -> usize { self.get(&WordConstraint::Length(len)) }
 
+    pub fn get_min_len(&self) -> usize { self.min_len }
+
     fn get_freq(&self, ngram: &[char], pos: usize, len: usize) -> usize {
         self.get(&WordConstraint::with_ngram(ngram, pos, len))
     }
@@ -36,6 +41,7 @@ impl WordStats {
     }
 
     pub fn add_word(&mut self, word: &CVec) {
+        self.min_len = cmp::min(self.min_len, word.len());
         self.increase(WordConstraint::Length(word.len()));
         for wc in WordConstraint::all_constraints(word, self.max_n) {
             self.increase(wc);

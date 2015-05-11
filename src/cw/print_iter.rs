@@ -1,17 +1,11 @@
 use cw::{BLOCK, Crosswords, Dir, Point};
 
-enum PrintIterType {
-    Solution,
-    Puzzle,
-}
-
 pub enum PrintItem {
     VertBorder(bool),
     HorizBorder(bool),
     Cross(bool),
     Block,
-    Character(char),
-    Hint(u32),
+    CharHint(char, Option<u32>),
     LineBreak,
 }
 
@@ -20,25 +14,19 @@ pub struct PrintIter<'a> {
     between_lines: bool,
     between_chars: bool,
     cw: &'a Crosswords,
-    pi_type: PrintIterType,
     hint_count: u32,
 }
 
 impl<'a> PrintIter<'a> {
-    fn new(cw: &'a Crosswords, pi_type: PrintIterType) -> Self {
+    pub fn new(cw: &'a Crosswords) -> Self {
         PrintIter {
             point: Point::new(-1, -1),
             between_lines: true,
             between_chars: true,
             cw: cw,
-            pi_type: pi_type,
             hint_count: 0,
         }
     }
-
-    pub fn new_solution(cw: &'a Crosswords) -> Self { PrintIter::new(cw, PrintIterType::Solution) }
-
-    pub fn new_puzzle(cw: &'a Crosswords) -> Self { PrintIter::new(cw, PrintIterType::Puzzle) }
 }
 
 impl<'a> Iterator for PrintIter<'a> {
@@ -75,17 +63,12 @@ impl<'a> Iterator for PrintIter<'a> {
             } else {
                 result = match self.cw.get_char(self.point).unwrap() {
                     BLOCK => PrintItem::Block,
-                    c => match self.pi_type {
-                        PrintIterType::Solution => PrintItem::Character(c),
-                        PrintIterType::Puzzle => {
-                            if self.cw.has_hint_at(self.point) {
-                                self.hint_count += 1;
-                                PrintItem::Hint(self.hint_count)
-                            } else {
-                                PrintItem::Character(' ')
-                            }
-                        }
-                    },
+                    c => PrintItem::CharHint(c, if self.cw.has_hint_at(self.point) {
+                            self.hint_count += 1;
+                            Some(self.hint_count)
+                        } else {
+                            None
+                        }),
                 };
             }
             self.between_chars = true;

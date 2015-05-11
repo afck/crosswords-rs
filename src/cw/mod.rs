@@ -336,9 +336,7 @@ impl Crosswords {
         2 * self.width * self.height - self.width - self.height
     }
 
-    pub fn print_items_solution<'a>(&'a self) -> PrintIter<'a> { PrintIter::new_solution(&self) }
-
-    pub fn print_items_puzzle<'a>(&'a self) -> PrintIter<'a> { PrintIter::new_puzzle(&self) }
+    pub fn print_items<'a>(&'a self) -> PrintIter<'a> { PrintIter::new(&self) }
 
     pub fn get_boundary_iter_for<'a>(&'a self, point: Point, range: Option<Range>)
             -> BoundaryIter<'a> {
@@ -354,7 +352,7 @@ impl Display for Crosswords {
             let br = 100_f32 * (bc as f32) / (bt as f32);
             try!(formatter.write_fmt(format_args!("{} / {} borders ({}%)\n", bc, bt, br)));
         }
-        for item in self.print_items_solution() {
+        for item in self.print_items() {
             try!(formatter.write_str(&match item {
                 PrintItem::Cross(true) => '\u{00B7}',
                 PrintItem::VertBorder(true) => '|',
@@ -362,8 +360,7 @@ impl Display for Crosswords {
                 PrintItem::Cross(false) | PrintItem::VertBorder(false)
                     | PrintItem::HorizBorder(false) => ' ',
                 PrintItem::Block => '\u{2588}',
-                PrintItem::Character(c) => c,
-                PrintItem::Hint(_) => '\'',
+                PrintItem::CharHint(c, _) => c,
                 PrintItem::LineBreak => '\n',
             }.to_string()[..]))
         }
