@@ -1,21 +1,28 @@
 extern crate crosswords_rs;
 extern crate getopts;
+extern crate hyper;
+extern crate regex;
+
 use getopts::Options;
+use std::collections::HashMap;
 use std::env;
 use std::i32;
 
 mod html;
+mod get_hints;
 
 use crosswords_rs::{Author, Crosswords, Dict};
+use get_hints::get_hints;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Result};
 
 /// Write the crosswords grid to the file with the given name.
-fn write_html_to_file(filename: &str, cw: &Crosswords, solution: bool) -> Result<()> {
+fn write_html_to_file(filename: &str, cw: &Crosswords, solution: bool,
+                      hint_text: &HashMap<String, String>) -> Result<()> {
     let file = try!(File::create(filename));
     let mut writer = BufWriter::new(file);
-    html::write_html(&mut writer, cw, solution)
+    html::write_html(&mut writer, cw, solution, hint_text)
 }
 
 /// Print the usage help message.
@@ -56,6 +63,7 @@ fn create_opts() -> Options {
     opts.optflag("v", "verbose", "print the current grid status during computation");
     opts.optopt("m", "min_word_len", "don't use words shorter than that", "INTEGER");
     opts.optopt("", "samples", "number of grids to create and select the best from", "INTEGER");
+    opts.optopt("", "wikipedia", "use hints from Wikipedia in the given language", "LANGUAGE");
     opts
 }
 
@@ -120,7 +128,14 @@ pub fn main() {
             println!("Best candidate:");
         }
         print_cw(&cw, &author);
-        write_html_to_file("puzzle.html", &cw, false).unwrap();
-        write_html_to_file("solution.html", &cw, true).unwrap();
+        let hint_text = match matches.opt_str("wikipedia") {
+            None => HashMap::new(),
+            Some(lang) => {
+                let word_iter = cw.get_words().iter().map(|cvec| cvec.iter().cloned().collect());
+                get_hints(word_iter, lang)
+            }
+        };
+        write_html_to_file("puzzle.html", &cw, false, &hint_text).unwrap();
+        write_html_to_file("solution.html", &cw, true, &hint_text).unwrap();
     }
 }

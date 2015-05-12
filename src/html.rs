@@ -1,4 +1,5 @@
 use crosswords_rs::{Crosswords, Dir, Point, PrintItem};
+use std::collections::HashMap;
 use std::io::{Result, Write};
 
 const CSS: &'static str = r#"
@@ -65,7 +66,8 @@ fn write_grid<T: Write, I: Iterator<Item = PrintItem>>(writer: &mut T, items: I,
     Ok(())
 }
 
-fn write_hints<T: Write>(writer: &mut T, cw: &Crosswords, dir: Dir) -> Result<()> {
+fn write_hints<T: Write>(writer: &mut T, cw: &Crosswords, dir: Dir,
+                         hint_text: &HashMap<String, String>) -> Result<()> {
     try!(writeln!(writer, "<p><br><b>{}:</b>&nbsp;", match dir {
         Dir::Right => "Horizontal",
         Dir::Down => "Vertical",
@@ -77,7 +79,8 @@ fn write_hints<T: Write>(writer: &mut T, cw: &Crosswords, dir: Dir) -> Result<()
             if cw.has_hint_at(p) { hint_count += 1; }
             if cw.has_hint_at_dir(p, dir) {
                 let word: String = cw.chars_at(p, dir).collect();
-                try!(write!(writer, "<b>{}.</b> [{}] &nbsp;", hint_count, word));
+                let hint = hint_text.get(&word).cloned().unwrap_or(format!("[{}]", word));
+                try!(write!(writer, "<b>{}.</b> {} &nbsp;", hint_count, hint));
             }
         }
     }
@@ -85,7 +88,8 @@ fn write_hints<T: Write>(writer: &mut T, cw: &Crosswords, dir: Dir) -> Result<()
     Ok(())
 }
 
-pub fn write_html<T: Write>(writer: &mut T, cw: &Crosswords, solution: bool) -> Result<()> {
+pub fn write_html<T: Write>(writer: &mut T, cw: &Crosswords, solution: bool,
+                            hint_text: &HashMap<String, String>) -> Result<()> {
     try!(writeln!(writer, r#"<!doctype html>"#));
     try!(writeln!(writer, r#"<head>"#));
     try!(writeln!(writer, r#"<meta charset="utf-8" />"#));
@@ -95,8 +99,8 @@ pub fn write_html<T: Write>(writer: &mut T, cw: &Crosswords, solution: bool) -> 
     try!(writeln!(writer, r#"<div style="width: {}px">"#, cw.get_width() * 32 + 2));
     try!(write_grid(writer, cw.print_items(), solution));
     try!(writeln!(writer, r#"</div><br><div style="clear: both"></div>"#));
-    try!(write_hints(writer, &cw, Dir::Right));
-    try!(write_hints(writer, &cw, Dir::Down));
+    try!(write_hints(writer, &cw, Dir::Right, hint_text));
+    try!(write_hints(writer, &cw, Dir::Down, hint_text));
     try!(writeln!(writer, "<br></body>"));
     Ok(())
 }
