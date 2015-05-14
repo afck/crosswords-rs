@@ -2,7 +2,7 @@ use cw::CVec;
 use std::iter;
 use std::slice;
 use std::ops;
-
+use std::option;
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub enum WordConstraint {
@@ -16,6 +16,11 @@ pub enum WordConstraint {
 pub type NgramIter<'a> = iter::Map<
     iter::Zip<slice::Windows<'a, char>, iter::Enumerate<iter::Repeat<usize>>>,
     fn((&[char], (usize, usize))) -> WordConstraint>;
+
+pub type AllNgramIter<'a> = iter::FlatMap<
+    iter::Zip<iter::Repeat<&'a CVec>, ops::Range<usize>>,
+    NgramIter<'a>,
+    fn((&'a Vec<char>, usize)) -> NgramIter<'a>>;
 
 impl WordConstraint {
     pub fn with_ngram(ngram: &[char], pos: usize, len: usize) -> WordConstraint {
@@ -35,14 +40,17 @@ impl WordConstraint {
         word.windows(n).zip(iter::repeat(word.len()).enumerate()).map(to_constraint)
     }
 
-    pub fn all_constraints<'a>(word: &'a CVec, max_n: usize) -> iter::FlatMap<
-            iter::Zip<iter::Repeat<&'a CVec>, ops::Range<usize>>,
-            NgramIter<'a>,
-            fn((&'a Vec<char>, usize)) -> NgramIter<'a>> {
+    fn all_ngram_constraints<'a>(word: &'a CVec, max_n: usize) -> AllNgramIter<'a> {
         fn to_iter<'a>((word, n): (&'a CVec, usize)) -> NgramIter<'a> {
             WordConstraint::ngram_constraints(word, n)
         };
         iter::repeat(word).zip(1..(max_n + 1)).flat_map(to_iter)
+    }
+
+    pub fn all<'a>(word: &'a CVec, max_n: usize) ->
+            iter::Chain<AllNgramIter<'a>, option::IntoIter<WordConstraint>> {
+        WordConstraint::all_ngram_constraints(word, max_n)
+            .chain(Some(WordConstraint::Length(word.len())))
     }
 }
 

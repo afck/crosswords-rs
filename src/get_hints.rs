@@ -1,4 +1,8 @@
 // TODO: Use the regex! macro once that feature is stable.
+// TODO: Consider using external software for that, e. g.:
+//       https://github.com/bwbaugh/wikipedia-extractor/blob/master/WikiExtractor.py
+//       It might be best to move the whole hint generation out of crosswords-rs. Instead, you
+//       could specify a hint generation program at the command line.
 use regex::Regex;
 use std::ascii::AsciiExt;
 use std::collections::HashMap;
@@ -42,9 +46,9 @@ fn get_hint_from_article(article: String, word: &str, lang: &str) -> String {
     };
     let word_re = format!(r#"((?i){})"#, word);
     // Disambiguations:
-    let ex_re1 = Regex::new(
-            &format!(r#"{}\S* (or [^\.\n]* )?may refer to:\n(\s*((=|;).*|.*:)?\n)*\*(?P<excerpt>.*)\n"#,
-                     word_re))
+    let ex_re1 = Regex::new(&format!(
+            r#"{}\S* (or [^\.\n]* )?may refer to:\n(\s*((=|;).*|.*:)?\n)*\*(?P<excerpt>.*)\n"#,
+            word_re))
         .unwrap();
     // Sentences starting with "<word> is ...":
     let ex_re0 = Regex::new(
@@ -97,7 +101,7 @@ fn download_article(word: &String, lang: &String) -> String {
 
 fn get_hint(word: &String, lang: &String) -> String {
     let article = download_article(word, lang);
-    // TODO: Remove markup.
+    // TODO: Remove markup. Or better: Find some external software that removes markup.
     // TODO: Escape HTML
     // TODO: Handle disambiguations.
     // TODO: Do something (like, an anagram?) if the article doesn't exist.

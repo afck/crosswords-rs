@@ -42,8 +42,7 @@ impl WordStats {
 
     pub fn add_word(&mut self, word: &CVec) {
         self.min_len = cmp::min(self.min_len, word.len());
-        self.increase(WordConstraint::Length(word.len()));
-        for wc in WordConstraint::all_constraints(word, self.max_n) {
+        for wc in WordConstraint::all(word, self.max_n) {
             self.increase(wc);
         }
     }
