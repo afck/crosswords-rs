@@ -1,3 +1,5 @@
+//! An `Author` produces crossword grids from a given set of dictionaries.
+
 mod word_range_iter;
 
 use cw::{BLOCK, Crosswords, CVec, Dir, Point, Range};
@@ -9,42 +11,8 @@ use std::collections::HashSet;
 use std::usize;
 use author::word_range_iter::WordRangeIter;
 
-// TODO (some thoughts on extending the algorithm):
-//
-// 3 stages?
-// (1) Favorite words (empty cells allowed)
-// (2) Fill in the rest from the dictionary
-// (3) Finalize: Put every word that's still possible
-//
-// Functionality (mainly for 2):
-// (a) Find sets of ranges one of which must be filled:
-//      * Each word crosses N (2?) others?
-//      * > N% (30%?) of each word's characters cross other word.
-//      * No cell can remain empty.
-// (b) Choose the most restrictive set of ranges:
-//      * Lowest estimate of matching words.
-// (c) Iterate over all possible words and recursively complete the crosswords
-//      * Start with the most favorable ranges and the favorite words.
-//      * (Optional: Always compare 10 options and choose the most promising one, e. g. by highest
-//                   estimate of possible crossing words.)
-// (d) If no words are possible, backtrack:
-//      * Remove the latest words, up to the latest one intersecting the impossible ranges.
-//      * (Optional: Go even further if it's easy to determine that that won't help yet.)
-//      * (Optional: Keep the current state - in case of failure, return the "best" failure.)
-//
-// Evaluation for ranges:
-// * Must contain a letter, i. e. cross another word, to ensure connectedness.
-// * Long ranges are preferable.
-// * Crossing many words is a plus.
-//
-// Evaluation for complete result:
-// * Must be connected.
-// * No (few?) empty cells.
-// * Percentage of borders.
-// * Number of favorites. (Weighted by length?)
-// * Minimum/average percentage of letters per word that don't belong to a crossing word.
-
-
+/// A `RangeSet` represents a choice of ranges in the crosswords grid one of which must be filled
+/// in order to satisfy the requirements.
 #[derive(Clone, PartialEq)]
 struct RangeSet {
     /// One of these ranges must be filled.
@@ -56,6 +24,7 @@ struct RangeSet {
     est: f32,
 }
 
+/// `RangeSet`s are ordered by the estimated number of possibilities to place words.
 impl PartialOrd for RangeSet {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.est.partial_cmp(&other.est)
@@ -67,7 +36,7 @@ impl RangeSet {
         RangeSet {
             ranges: HashSet::new(),
             backtrack_ranges: HashSet::new(),
-            est: 0_f32,
+            est: 0.,
         }
     }
 
@@ -93,6 +62,7 @@ struct StackItem<'a> {
     attempts: usize,
 }
 
+/// The `Author` type. See [the module level documentation](index.html) for more.
 pub struct Author<'a> {
     dicts: &'a Vec<Dict>,
     cw: Crosswords,
@@ -104,39 +74,62 @@ pub struct Author<'a> {
     stack: Vec<StackItem<'a>>,
 }
 
+/// Replaces the `$result` with the given range set `$rs` if that has a lower estimated word count.
+/// If the estimate is 0, return immediately.
 // TODO: Find a saner way to do this.
 macro_rules! result_range_set {
     ( $result:expr, $rs:expr ) => {
-        if $rs.est == 0_f32 {
+        if $rs.est == 0. {
             return Some($rs);
         }
-        if $result.iter().all(|result_rs| &$rs < result_rs) { $result = Some($rs) }
+        if $result.iter().all(|result_rs| &$rs < result_rs) {
+            $result = Some($rs);
+        }
     };
 }
 
 impl<'a> Author<'a> {
-    pub fn new(init_cw: &Crosswords,
-               min_crossing: usize,
-               min_crossing_rel: f32,
-               dicts: &'a Vec<Dict>,
-               verbose: bool) -> Author<'a> {
-        (min_crossing_rel >= 0_f32 && min_crossing_rel <= 1_f32)
-            || panic!("min_crossing_rel must be between 0 and 1");
+    /// Create a new `Author` with the given initial crosswords grid and the given dictionaries.
+    pub fn new(init_cw: &Crosswords, dicts: &'a Vec<Dict>) -> Author<'a> {
         let mut stats = WordStats::new(3);
-        for dict in dicts {
-            stats.add_words(dict.all_words());
-        }
+        stats.add_words(dicts.iter().flat_map(|dict| dict.all_words()));
         Author {
             dicts: dicts,
-            cw: init_cw.clone(),
-            min_crossing: min_crossing,
-            min_crossing_rel: min_crossing_rel,
-            max_attempts: 5,// usize::MAX, // TODO
             stats: stats,
-            verbose: verbose,
+            cw: init_cw.clone(),
+            verbose: false,
+            min_crossing: 2,
+            min_crossing_rel: 0.,
+            max_attempts: usize::MAX,
             stack: Vec::new(),
-            // TODO: min_fav_words / max_nonfav_words ...?
         }
+    }
+
+    /// Set the values for the minimum absolute and relative numbers of letters in each word that
+    /// are required to be shared with a perpendicular word, and return the modified `Author`.
+    pub fn with_min_crossing(mut self, min_crossing: usize, min_crossing_rel: f32) -> Author<'a> {
+        if min_crossing_rel < 0. || min_crossing_rel > 1. {
+            panic!("min_crossing_rel must be between 0 and 1");
+        }
+        self.min_crossing = min_crossing;
+        self.min_crossing_rel = min_crossing_rel;
+        self
+    }
+
+    /// Set the maximum number of words to try out in each position. After `max_attempts` words
+    /// have been unsuccessfully tried out, the algorithm will backtrack further. Setting this to a
+    /// small value can speed up the search but can overlook valid solutions.
+    /// Return the modified `Author`.
+    pub fn with_max_attempts(mut self, max_attempts: usize) -> Author<'a> {
+        self.max_attempts = max_attempts;
+        self
+    }
+
+    /// Set the verbosity mode and return the modified `Author`. If `verbose` is true, the current
+    /// status of the crosswords grid is printed every time the algorithm backtracks.
+    pub fn with_verbosity(mut self, verbose: bool) -> Author<'a> {
+        self.verbose = verbose;
+        self
     }
 
     /// Return the index of the dictionary containing the given word, or None if not found.
@@ -145,7 +138,7 @@ impl<'a> Author<'a> {
     }
 
     fn is_min_crossing_possible_without(&self, range: Range, filled_range: Range) -> bool {
-        if self.min_crossing_rel == 1_f32 {
+        if self.min_crossing_rel == 1. {
             return range.len == 0 || range.len >= self.stats.get_min_len();
         }
         if range.len < 2 {
@@ -157,43 +150,54 @@ impl<'a> Author<'a> {
         for p in range.points() {
             let r0 = Range { point: p, dir: odir, len: 2 };
             let r1 = Range { point: p - odp, dir: odir, len: 2 };
-            // TODO: Also consider stats here?
+            // TODO: Also consider stats here? Require word estimate > 0.
             if !self.cw.both_borders(p, odir)
                     || (!r0.intersects(&filled_range) && self.cw.is_range_free(r0))
                     || (!r1.intersects(&filled_range) && self.cw.is_range_free(r1)) {
                 c_opts += 1;
-                c_opts < self.min_crossing || return true;
+                if c_opts >= self.min_crossing {
+                    return true;
+                }
             }
         }
         false
     }
 
-    fn would_block(&self, range: Range, point: Point) -> bool {
-        self.cw.both_borders(point, range.dir) || return false;
-        let ch = self.cw.get_char(point);
-        ch != None || return false;
-        // Make sure this range doesn't isolate a cluster of empty cells.
-        if ch == Some(BLOCK) && self.cw.get_boundary_iter_for(point, Some(range)).all(|(p0, p1)| {
-            let r = Range::with_points(p0, p1);
-            !self.cw.is_range_free(r) || (r.dir == range.dir && range.intersects(&r))
-        }) {
-            return true;
-        }
-        // Make sure it doesn't make min_crossing crossing words impossible for the perpendicular.
-        if self.min_crossing_rel == 1_f32 {
+    fn would_isolate_empty_cluster(&self, range: Range, point: Point) -> bool {
+        if self.cw.is_letter(point) {
             return false;
         }
-        let r = match ch {
-            Some(BLOCK) => self.cw.get_free_range_containing(point, range.dir.other()),
-            _ => self.cw.get_word_range_containing(point, range.dir.other()),
+        self.cw.get_boundary_iter_for(point, Some(range)).all(|(p0, p1)| {
+            let r = Range::with_points(p0, p1);
+            !self.cw.is_range_free(r) || (r.dir == range.dir && range.intersects(&r))
+        })
+    }
+
+    fn wouldnt_block(&self, range: Range, point: Point) -> bool {
+        if !self.cw.both_borders(point, range.dir) || !self.cw.contains(point) {
+            return true; // Point already belongs to a word or is outside the grid.
+        }
+        if self.would_isolate_empty_cluster(range, point) {
+            return false;
+        }
+        // Make sure it doesn't make min_crossing crossing words impossible for the perpendicular.
+        if self.min_crossing_rel == 1. {
+            return true; // Then leaving unfilled length-1 ranges isn't allowed anyway.
+        }
+        let r = if self.cw.is_letter(point) {
+            self.cw.get_word_range_containing(point, range.dir.other())
+        } else {
+            self.cw.get_free_range_containing(point, range.dir.other())
         };
-        !self.is_min_crossing_possible_without(r, range)
+        self.is_min_crossing_possible_without(r, range)
     }
 
     /// Return the maximum number of characters of a word of the given length that don't need to
     /// be connected to a crossing word.
     fn get_max_noncrossing(&self, len: usize) -> usize {
-        self.min_crossing <= len || return len;
+        if self.min_crossing > len {
+            return len;
+        }
         let rel_min_crossing = (self.min_crossing_rel * (len as f32)) as usize;
         len - cmp::max(rel_min_crossing, self.min_crossing)
     }
@@ -201,19 +205,18 @@ impl<'a> Author<'a> {
     fn add_range(&self, rs: &mut RangeSet, range: Range) {
         let p = range.point;
         let dp = range.dir.point();
-        if self.would_block(range, p - dp) || self.would_block(range, p + dp * range.len) 
-                || !self.is_min_crossing_possible_without(self.cw.get_range_before(&range), range)
-                || !self.is_min_crossing_possible_without(self.cw.get_range_after(&range), range) {
-            return;
-        }
-        let est = self.stats.estimate_matches(&self.cw.chars(range).collect());
-        if est != 0_f32 && rs.ranges.insert(range) {
-            rs.est += est;
+        if self.wouldnt_block(range, p - dp)
+                && self.wouldnt_block(range, p + dp * range.len)
+                && self.is_min_crossing_possible_without(self.cw.get_range_before(&range), range)
+                && self.is_min_crossing_possible_without(self.cw.get_range_after(&range), range) {
+            let est = self.stats.estimate_matches(&self.cw.chars(range).collect());
+            if est != 0. && rs.ranges.insert(range) {
+                rs.est += est;
+            }
         }
     }
 
     /// Returns a range set containing all free ranges with the given point in the given direction.
-    /// The backtrack range extends one field past the longest of these ranges.
     fn get_all_ranges(&self, point: Point, dir: Dir, best: &Option<RangeSet>) -> Option<RangeSet> {
         let mut rs = RangeSet::new();
         let range = self.cw.get_free_range_containing(point, dir);
@@ -227,7 +230,9 @@ impl<'a> Author<'a> {
                         dir: dir,
                         len: j - i + 1,
                     });
-                    best.iter().all(|r| rs.est < r.est) || return None;
+                    if best.iter().any(|r| rs.est >= r.est) {
+                        return None; // Wouldn't have smaller est than the best range set so far.
+                    }
                 }
             }
         }
@@ -292,9 +297,13 @@ impl<'a> Author<'a> {
     }
 
     fn get_range_set(&self) -> Option<RangeSet> {
-        self.cw.is_empty() && return Some(self.get_ranges_for_empty());
+        if self.cw.is_empty() {
+            return Some(self.get_ranges_for_empty());
+        }
         let mut result = self.get_word_range_set();
-        self.cw.is_full() && return result;
+        if self.cw.is_full() {
+            return result;
+        }
         let mut rs = RangeSet::new();
         for (p0, p1) in self.cw.get_smallest_boundary() {
             let dir = if p0.y == p1.y { Dir::Right } else { Dir::Down };
@@ -336,6 +345,7 @@ impl<'a> Author<'a> {
         opt_item
     }
 
+    /// Pops the stack until there are no more than n words left in the grid.
     pub fn pop_to_n_words(&mut self, n: usize) {
         while self.stack.len() > n {
             self.pop();

@@ -266,7 +266,7 @@ impl Crosswords {
     }
 
     #[inline]
-    fn is_letter(&self, point: Point) -> bool {
+    pub fn is_letter(&self, point: Point) -> bool {
         match self.get_char(point) {
             None | Some(BLOCK) => false,
             Some(_) => true,
@@ -349,7 +349,7 @@ impl Display for Crosswords {
         {
             let bc = self.count_borders();
             let bt = self.max_border_count();
-            let br = 100_f32 * (bc as f32) / (bt as f32);
+            let br = 100. * (bc as f32) / (bt as f32);
             try!(formatter.write_fmt(format_args!("{} / {} borders ({}%)\n", bc, bt, br)));
         }
         for item in self.print_items() {

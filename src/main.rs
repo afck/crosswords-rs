@@ -16,6 +16,7 @@ use get_hints::get_hints;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Result};
+use std::usize;
 
 /// Write the crosswords grid to the file with the given name.
 fn write_html_to_file(filename: &str, cw: &Crosswords, solution: bool,
@@ -64,6 +65,8 @@ fn create_opts() -> Options {
     opts.optopt("m", "min_word_len", "don't use words shorter than that", "INTEGER");
     opts.optopt("", "samples", "number of grids to create and select the best from", "INTEGER");
     opts.optopt("", "wikipedia", "use hints from Wikipedia in the given language", "LANGUAGE");
+    opts.optopt("", "max_attempts", "the maximum number of words to try out in each position",
+                "INTEGER");
     opts
 }
 
@@ -95,19 +98,19 @@ pub fn main() {
         .map(|s| s.parse().unwrap()).collect());
     let (width, height): (usize, usize) = (size[0], size[1]);
     let min_crossing = matches.opt_str("c").map_or(2, |s| s.parse().unwrap());
-    let min_crossing_rel = 0.01 * matches.opt_str("p").map_or(30_f32, |s| s.parse().unwrap());
+    let min_crossing_rel = 0.01 * matches.opt_str("p").map_or(30., |s| s.parse().unwrap());
     let min_word_len = matches.opt_str("m").map_or(2, |s| s.parse().unwrap());
+    let max_attempts = matches.opt_str("max_attempts").map_or(usize::MAX, |s| s.parse().unwrap());
     let samples = matches.opt_str("samples").map_or(1, |s| s.parse().unwrap());
     let verbose = matches.opt_present("v");
     let dicts = get_dicts(match matches.opt_count("d") {
         0 => vec!("dict/favorites.txt".to_string(), "dict/dict.txt".to_string()),
         _ => matches.opt_strs("d"),
     }.into_iter(), min_word_len);
-    let mut author = Author::new(&Crosswords::new(width, height),
-                                 min_crossing,
-                                 min_crossing_rel,
-                                 &dicts,
-                                 verbose);
+    let mut author = Author::new(&Crosswords::new(width, height), &dicts)
+        .with_min_crossing(min_crossing, min_crossing_rel)
+        .with_verbosity(verbose)
+        .with_max_attempts(max_attempts);
     let (mut best_cw, mut best_val) = (None, i32::MIN);
     for i in 0..samples {
         if let Some(cw) = author.complete_cw() {

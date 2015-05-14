@@ -88,6 +88,7 @@ fn write_hints<T: Write>(writer: &mut T, cw: &Crosswords, dir: Dir,
     Ok(())
 }
 
+/// Write the crosswords to the given writer as an HTML page.
 pub fn write_html<T: Write>(writer: &mut T, cw: &Crosswords, solution: bool,
                             hint_text: &HashMap<String, String>) -> Result<()> {
     try!(writeln!(writer, r#"<!doctype html>"#));

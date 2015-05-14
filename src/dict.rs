@@ -111,33 +111,39 @@ impl Dict {
         self.words.iter()
     }
 
-    /// Return an iterator over all words in the dictionary matching the given pattern.
-    pub fn matching_words<'a>(&'a self, pattern: CVec) -> PatternIter<'a> {
+    fn get_matching_word_list<'a>(&'a self, pattern: &CVec) -> &'a Vec<usize> {
         let len = pattern.len();
         let mut list: &'a Vec<usize> = self.get_list(&WordConstraint::Length(pattern.len()));
-        if list.len() != 0 {
-            let mut pos = 0;
-            'outer: for i in pattern.iter().enumerate()
-                    .filter(|&(_, ch)| ch == &BLOCK)
-                    .map(|(i, _)| i)
-                    .chain(Some(len).into_iter()) {
-                if i > pos {
-                    let subword = &pattern[pos..i];
-                    let n = cmp::min(self.max_n, subword.len());
-                    for dp in 1..(subword.len() - n) {
-                        let wc = WordConstraint::with_ngram(&subword[dp..(dp + n)], pos + dp, len);
-                        let new_list = self.get_list(&wc);
-                        if list.len() > new_list.len() {
-                            list = new_list;
-                            if list.len() == 0 {
-                                break 'outer;
-                            }
+        if list.len() == 0 {
+            return list;
+        }
+        let mut pos = 0;
+        for i in pattern.iter().enumerate()
+                .filter(|&(_, ch)| ch == &BLOCK)
+                .map(|(i, _)| i)
+                .chain(Some(len).into_iter()) {
+            if i > pos {
+                let subword = &pattern[pos..i];
+                let n = cmp::min(self.max_n, subword.len());
+                for dp in 1..(subword.len() - n) {
+                    let wc = WordConstraint::with_ngram(&subword[dp..(dp + n)], pos + dp, len);
+                    let new_list = self.get_list(&wc);
+                    if list.len() > new_list.len() {
+                        list = new_list;
+                        if list.len() == 0 {
+                            return list;
                         }
                     }
                 }
-                pos = i + 1;
             }
+            pos = i + 1;
         }
+        list
+    }
+
+    /// Return an iterator over all words in the dictionary matching the given pattern.
+    pub fn matching_words<'a>(&'a self, pattern: CVec) -> PatternIter<'a> {
+        let list = self.get_matching_word_list(&pattern);
         PatternIter {
             dict: self,
             pattern: pattern,
