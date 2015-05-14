@@ -1,7 +1,13 @@
-extern crate crosswords_rs;
 extern crate getopts;
 extern crate hyper;
 extern crate regex;
+extern crate rand;
+
+mod author;
+mod cw;
+mod dict;
+mod word_constraint;
+mod word_stats;
 
 use getopts::Options;
 use std::collections::HashMap;
@@ -11,7 +17,9 @@ use std::i32;
 mod html;
 mod get_hints;
 
-use crosswords_rs::{Author, Crosswords, Dict};
+use author::Author;
+use cw::Crosswords;
+use dict::Dict;
 use get_hints::get_hints;
 use std::collections::HashSet;
 use std::fs::File;

@@ -1,4 +1,4 @@
-use crosswords_rs::{Crosswords, Dir, Point, PrintItem};
+use cw::{Crosswords, Dir, Point, PrintItem};
 use std::collections::HashMap;
 use std::io::{Result, Write};
 

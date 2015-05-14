@@ -19,13 +19,6 @@ impl Point {
             Some((self.x as usize) + w * (self.y as usize))
         }
     }
-
-    pub fn neighbors(&self) -> Vec<Point> {
-        vec!(Point { x: self.x, y: self.y - 1 },
-            Point { x: self.x, y: self.y + 1 },
-            Point { x: self.x - 1, y: self.y },
-            Point { x: self.x + 1, y: self.y })
-    }
 }
 
 impl Add for Point {

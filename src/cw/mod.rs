@@ -76,12 +76,18 @@ impl Crosswords {
     }
 
     #[inline]
-    pub fn get_width(&self) -> usize { self.width }
+    pub fn get_width(&self) -> usize {
+        self.width
+    }
 
     #[inline]
-    pub fn get_height(&self) -> usize { self.height }
+    pub fn get_height(&self) -> usize {
+        self.height
+    }
 
-    pub fn get_words<'a>(&'a self) -> &'a HashSet<CVec> { &self.words }
+    pub fn get_words<'a>(&'a self) -> &'a HashSet<CVec> {
+        &self.words
+    }
 
     #[inline]
     pub fn get_border(&self, point: Point, dir: Dir) -> bool {
@@ -140,7 +146,9 @@ impl Crosswords {
         point.coord(self.width, self.height).and_then(|p| self.chars.get(p).cloned())
     }
 
-    pub fn chars<'a>(&'a self, range: Range) -> RangeIter<'a> { RangeIter::new(range, &self) }
+    pub fn chars<'a>(&'a self, range: Range) -> RangeIter<'a> {
+        RangeIter::new(range, &self)
+    }
 
     pub fn chars_at<'a>(&'a self, point: Point, dir: Dir) -> RangeIter<'a> {
         self.chars(self.get_word_range_at(point, dir))
@@ -203,8 +211,6 @@ impl Crosswords {
             false
         }
     }
-
-    pub fn free_ranges<'a>(&'a self) -> RangesIter<'a> { RangesIter::new_free(&self) }
 
     pub fn contains(&self, point: Point) -> bool {
         point.x >= 0 && point.y >= 0 && point.x < self.width as i32 && point.y < self.height as i32
@@ -299,7 +305,9 @@ impl Crosswords {
         smallest
     }
 
-    pub fn word_ranges<'a>(&'a self) -> RangesIter<'a> { RangesIter::new_words(&self) }
+    pub fn word_ranges<'a>(&'a self) -> RangesIter<'a> {
+        RangesIter::new(&self)
+    }
 
     pub fn get_word_range_containing(&self, mut point: Point, dir: Dir) -> Range {
         let dp = dir.point();
@@ -322,7 +330,9 @@ impl Crosswords {
         self.has_hint_at_dir(point, Dir::Right) || self.has_hint_at_dir(point, Dir::Down)
     }
 
-    pub fn is_empty(&self) -> bool { self.words.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.words.is_empty()
+    }
 
     pub fn is_full(&self) -> bool {
         (0..(self.width * self.height)).all(|p| self.chars[p] != BLOCK)
@@ -336,7 +346,9 @@ impl Crosswords {
         2 * self.width * self.height - self.width - self.height
     }
 
-    pub fn print_items<'a>(&'a self) -> PrintIter<'a> { PrintIter::new(&self) }
+    pub fn print_items<'a>(&'a self) -> PrintIter<'a> {
+        PrintIter::new(&self)
+    }
 
     pub fn get_boundary_iter_for<'a>(&'a self, point: Point, range: Option<Range>)
             -> BoundaryIter<'a> {

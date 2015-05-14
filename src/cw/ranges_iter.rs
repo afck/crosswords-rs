@@ -1,31 +1,21 @@
 use cw::{Crosswords, Dir, Range, Point};
 
-enum RangesIterType {
-    Word, Free,
-}
-
 pub struct RangesIter<'a> {
     point: Point,
     dir: Dir,
     ended: bool,
     cw: &'a Crosswords,
-    ri_type: RangesIterType,
 }
 
 impl<'a> RangesIter<'a> {
-    fn new(cw: &'a Crosswords, ri_type: RangesIterType) -> Self {
+    pub fn new(cw: &'a Crosswords) -> RangesIter<'a> {
         RangesIter {
             point: Point::new(0, 0),
             dir: Dir::Right,
             ended: false,
             cw: cw,
-            ri_type: ri_type,
         }
     }
-
-    pub fn new_free(cw: &'a Crosswords) -> Self { RangesIter::new(cw, RangesIterType::Free) }
-
-    pub fn new_words(cw: &'a Crosswords) -> Self { RangesIter::new(cw, RangesIterType::Word) }
 
     fn advance(&mut self, len: usize) {
         if self.ended { return; }
@@ -59,10 +49,7 @@ impl<'a> Iterator for RangesIter<'a> {
     type Item = Range;
     fn next(&mut self) -> Option<Range> {
         while !self.ended {
-            let range = match self.ri_type {
-                RangesIterType::Word => self.cw.get_word_range_at(self.point, self.dir),
-                RangesIterType::Free => self.cw.get_free_range_at(self.point, self.dir),
-            };
+            let range = self.cw.get_word_range_at(self.point, self.dir);
             if range.len > 1 {
                 self.advance(range.len); // TODO: If RIT::Free, advance len + 2?
                 return Some(range);
