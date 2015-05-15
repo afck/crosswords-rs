@@ -23,7 +23,8 @@ Build using [Cargo](https://crates.io/):
 cargo build --release
 ```
 This will download all dependencies and produce the crosswords-rs binary in the target/release
-directory. Obtain a word list, e. g. [this one](/first20hours/google-10000-english), and run
+directory. Obtain a word list, e. g.
+[this one](https://github.com/first20hours/google-10000-english), and run
 crosswords-rs to produce a grid:
 ``` sh
 target/release/crosswords-rs -d dict/google-10000-english.txt
