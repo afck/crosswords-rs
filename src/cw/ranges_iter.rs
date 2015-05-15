@@ -1,5 +1,6 @@
 use cw::{Crosswords, Dir, Range, Point};
 
+/// An iterator over all ranges that correspond to a word in the crosswords grid.
 pub struct RangesIter<'a> {
     point: Point,
     dir: Dir,
@@ -8,6 +9,7 @@ pub struct RangesIter<'a> {
 }
 
 impl<'a> RangesIter<'a> {
+    /// Creates an iterator over all ranges corresponding to a word in the given grid.
     pub fn new(cw: &'a Crosswords) -> RangesIter<'a> {
         RangesIter {
             point: Point::new(0, 0),
@@ -51,7 +53,7 @@ impl<'a> Iterator for RangesIter<'a> {
         while !self.ended {
             let range = self.cw.get_word_range_at(self.point, self.dir);
             if range.len > 1 {
-                self.advance(range.len); // TODO: If RIT::Free, advance len + 2?
+                self.advance(range.len);
                 return Some(range);
             }
             self.advance(1);

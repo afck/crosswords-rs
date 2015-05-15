@@ -24,11 +24,12 @@ use get_hints::get_hints;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Result};
+use std::path::Path;
 use std::usize;
 
 /// Write the crosswords grid to the file with the given name.
-fn write_html_to_file(filename: &str, cw: &Crosswords, solution: bool,
-                      hint_text: &HashMap<String, String>) -> Result<()> {
+fn write_html_to_file<P: AsRef<Path>>(filename: P, cw: &Crosswords, solution: bool,
+                                      hint_text: &HashMap<String, String>) -> Result<()> {
     let file = try!(File::create(filename));
     let mut writer = BufWriter::new(file);
     html::write_html(&mut writer, cw, solution, hint_text)
@@ -101,7 +102,7 @@ pub fn main() {
         print_usage(&program, opts);
         return;
     }
-    // TODO: Sanity checks for option values.
+    // TODO: Sanity checks for option values; proper error messages.
     let size: Vec<usize> = matches.opt_str("s").map_or(vec!(15, 10), |s| s.split('x')
         .map(|s| s.parse().unwrap()).collect());
     let (width, height): (usize, usize) = (size[0], size[1]);

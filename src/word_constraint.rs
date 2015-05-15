@@ -1,13 +1,11 @@
-//! A `WordConstraint` represents the subset of all words with a given length, and optionally with
-//! a given n-gram at a specific position.
-
 use cw::CVec;
 use std::iter;
 use std::slice;
 use std::ops;
 use std::option;
 
-/// The `WordConstraint` type. See [the module level documentation](index.html) for more.
+/// A `WordConstraint` represents the subset of all words with a given length, and optionally with
+/// a given n-gram at a specific position.
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub enum WordConstraint {
     /// All words with the given length.

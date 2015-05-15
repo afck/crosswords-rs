@@ -1,6 +1,3 @@
-//! A `Dict` stores a list of words - represented as char vectors - and indexes them for
-//! efficiently iterating over all words satisfying a given `WordConstraint`.
-
 use cw::{CVec, BLOCK};
 use rand;
 use rand::Rng;
@@ -43,7 +40,8 @@ impl<'a> Iterator for PatternIter<'a> {
     }
 }
 
-/// The `Dict` type. See [the module level documentation](index.html) for more.
+/// A `Dict` stores a list of words - represented as char vectors - and indexes them for
+/// efficiently iterating over all words satisfying a given `WordConstraint`.
 pub struct Dict {
     words: Vec<CVec>,
     lists: HashMap<WordConstraint, Vec<usize>>,

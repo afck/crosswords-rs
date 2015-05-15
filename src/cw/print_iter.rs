@@ -1,14 +1,31 @@
 use cw::{BLOCK, Crosswords, Dir, Point};
 
+/// An element representing a part of a crosswords grid: an element of the cell's borders, a cell
+/// and its contents or a line break. It should be converted to a textual or graphical
+/// representation.
+///
+/// The variants specifying borders contain a boolean value specifying whether the border should be
+/// displayed as thick or thin, i. e. whether it separates different words or letters of a single
+/// word.
 pub enum PrintItem {
+    /// A vertical border.
     VertBorder(bool),
+    /// A horizontal border.
     HorizBorder(bool),
+    /// A crossing point of borders. It is considered thick (value `true`) if at least two of the
+    /// four lines crossing here are thick.
     Cross(bool),
+    /// A solid block that is left empty in the crossword's solution. It does not belong to a word.
     Block,
+    /// A cell that belongs to one or two words and contains the given character. If one or two
+    /// words begin in this cell, the second value will be `n`, where this is the `n`-th cell
+    /// containing the beginning of a word.
     CharHint(char, Option<u32>),
+    /// A line break. This follows after every row of borders or cells.
     LineBreak,
 }
 
+/// An iterator over all `PrintItem`s representing a crosswords grid.
 pub struct PrintIter<'a> {
     point: Point,
     between_lines: bool,

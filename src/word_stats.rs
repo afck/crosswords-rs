@@ -1,14 +1,12 @@
-//! A `WordStats` represents word frequency statistics for one or more dictionaries. It contains
-//! numbers of words satisfying each `WordConstraint` and using these can estimate numbers of words
-//! matching a given pattern.
-
 use cw::{BLOCK, CVec};
 use std::cmp;
 use std::collections::HashMap;
 use std::usize;
 use word_constraint::WordConstraint;
 
-/// The `WordStats` type. See [the module level documentation](index.html) for more.
+/// A `WordStats` represents word frequency statistics for one or more dictionaries. It contains
+/// numbers of words satisfying each `WordConstraint` and using these can estimate numbers of words
+/// matching a given pattern.
 pub struct WordStats {
     freq: HashMap<WordConstraint, usize>,
     max_n: usize,

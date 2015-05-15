@@ -1,6 +1,8 @@
 use cw::{CVec, Range};
 use dict::{Dict, PatternIter};
 
+/// An iterator over all possibilities to fill one of the given ranges with a word from a set of
+/// dictionaries.
 pub struct WordRangeIter<'a> {
     ranges: Vec<(Range, CVec)>,
     dicts: &'a Vec<Dict>,
@@ -43,18 +45,20 @@ impl<'a> WordRangeIter<'a> {
             false
         }
     }
+}
 
-    pub fn next(&mut self) -> Option<(Range, CVec)> {
+impl<'a> Iterator for WordRangeIter<'a> {
+    type Item = (Range, CVec);
+
+    fn next(&mut self) -> Option<(Range, CVec)> {
         let mut oword = self.get_word();
         while oword.is_none() && self.advance() {
             oword = self.get_word();
         }
-        if let Some(word) = oword {
+        oword.map(|word| {
             let (range, _) = self.ranges[self.range_i];
-            Some((range, word))
-        } else {
-            None
-        }
+            (range, word)
+        })
     }
 }
 

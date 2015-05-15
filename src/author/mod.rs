@@ -1,5 +1,3 @@
-//! An `Author` produces crossword grids from a given set of dictionaries.
-
 mod word_range_iter;
 
 use cw::{BLOCK, Crosswords, CVec, Dir, Point, Range};
@@ -62,7 +60,7 @@ struct StackItem<'a> {
     attempts: usize,
 }
 
-/// The `Author` type. See [the module level documentation](index.html) for more.
+/// An `Author` produces crossword grids from a given set of dictionaries.
 pub struct Author<'a> {
     dicts: &'a Vec<Dict>,
     cw: Crosswords,
@@ -89,7 +87,7 @@ macro_rules! result_range_set {
 }
 
 impl<'a> Author<'a> {
-    /// Create a new `Author` with the given initial crosswords grid and the given dictionaries.
+    /// Creates a new `Author` with the given initial crosswords grid and the given dictionaries.
     pub fn new(init_cw: &Crosswords, dicts: &'a Vec<Dict>) -> Author<'a> {
         let mut stats = WordStats::new(3);
         stats.add_words(dicts.iter().flat_map(|dict| dict.all_words()));
@@ -105,7 +103,7 @@ impl<'a> Author<'a> {
         }
     }
 
-    /// Set the values for the minimum absolute and relative numbers of letters in each word that
+    /// Sets the values for the minimum absolute and relative numbers of letters in each word that
     /// are required to be shared with a perpendicular word, and return the modified `Author`.
     pub fn with_min_crossing(mut self, min_crossing: usize, min_crossing_rel: f32) -> Author<'a> {
         if min_crossing_rel < 0. || min_crossing_rel > 1. {
@@ -116,7 +114,7 @@ impl<'a> Author<'a> {
         self
     }
 
-    /// Set the maximum number of words to try out in each position. After `max_attempts` words
+    /// Sets the maximum number of words to try out in each position. After `max_attempts` words
     /// have been unsuccessfully tried out, the algorithm will backtrack further. Setting this to a
     /// small value can speed up the search but can overlook valid solutions.
     /// Return the modified `Author`.
@@ -125,14 +123,14 @@ impl<'a> Author<'a> {
         self
     }
 
-    /// Set the verbosity mode and return the modified `Author`. If `verbose` is true, the current
+    /// Sets the verbosity mode and return the modified `Author`. If `verbose` is true, the current
     /// status of the crosswords grid is printed every time the algorithm backtracks.
     pub fn with_verbosity(mut self, verbose: bool) -> Author<'a> {
         self.verbose = verbose;
         self
     }
 
-    /// Return the index of the dictionary containing the given word, or None if not found.
+    /// Returns the index of the dictionary containing the given word, or None if not found.
     pub fn get_word_category(&self, word: &CVec) -> Option<usize> {
         self.dicts.iter().position(|dict| dict.contains(word))
     }
@@ -192,7 +190,7 @@ impl<'a> Author<'a> {
         self.is_min_crossing_possible_without(r, range)
     }
 
-    /// Return the maximum number of characters of a word of the given length that don't need to
+    /// Returns the maximum number of characters of a word of the given length that don't need to
     /// be connected to a crossing word.
     fn get_max_noncrossing(&self, len: usize) -> usize {
         if self.min_crossing > len {

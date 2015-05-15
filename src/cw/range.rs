@@ -1,23 +1,19 @@
 use cw::{Dir, Point, PointIter};
 
+/// A horizontal or vertical range of consecutive points in a grid.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Range {
+    /// The first point in the range.
     pub point: Point,
+    /// The direction.
     pub dir: Dir,
+    /// The number of points in the range.
     pub len: usize,
 }
 
 impl Range {
-    /// Returns a range containing the given points.
-    /// Assumes (but does not check!) that the points are adjacent.
-    pub fn with_points(point0: Point, point1: Point) -> Range {
-        Range {
-            point: if point0.x < point1.x || point0.y < point1.y { point0 } else { point1 },
-            dir: if point0.x == point1.x { Dir::Down } else { Dir::Right },
-            len: 2,
-        }
-    }
-
+    /// Returns a (possibly empty) range containing all points satisfying the given predicate `f`,
+    /// starting from `point` and proceeding in the given direction until the predicate is false.
     pub fn cells_with<F>(point: Point, dir: Dir, mut f: F) -> Range where F: FnMut(Point) -> bool {
         let dp = dir.point();
         let mut p = point;
@@ -29,10 +25,22 @@ impl Range {
         Range { point: point, dir: dir, len: len }
     }
 
+    /// Returns an iterator over the points in the range.
     pub fn points(&self) -> PointIter {
         PointIter::new(self.point, self.dir, self.len)
     }
 
+    /// Returns a range containing the given two points.
+    /// Assumes (but does not check!) that the points are adjacent.
+    pub fn with_points(point0: Point, point1: Point) -> Range {
+        Range {
+            point: if point0.x < point1.x || point0.y < point1.y { point0 } else { point1 },
+            dir: if point0.x == point1.x { Dir::Down } else { Dir::Right },
+            len: 2,
+        }
+    }
+
+    /// Returns `true` if the point belongs to the range.
     pub fn contains(&self, point: Point) -> bool {
         match self.dir {
             Dir::Right => self.point.y == point.y
@@ -44,12 +52,15 @@ impl Range {
         }
     }
 
+    /// Returns `true` if the ranges have at least one point in common.
     pub fn intersects(&self, other: &Range) -> bool {
         let (s0, s1) = (self.point, self.point + self.dir.point() * (self.len - 1));
         let (o0, o1) = (other.point, other.point + other.dir.point() * (other.len - 1));
         s0.x <= o1.x && o0.x <= s1.x && s0.y <= o1.y && o0.y <= s1.y
     }
 
+    /// Returns `true` if the ranges are adjacent to each other, i. e. they are disjoint and their
+    /// union would be a range again.
     pub fn is_adjacent_to(&self, other: &Range) -> bool {
         self.dir == other.dir || return false;
         let dp = self.dir.point();

@@ -1,5 +1,6 @@
 use std::ops::{Add, Mul, Sub};
 
+/// A point in the plane with integral coordinates.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Point {
     pub x: i32,
@@ -7,10 +8,14 @@ pub struct Point {
 }
 
 impl Point {
+    /// Creates a point with the given x- and y-coordinates.
     pub fn new(x: i32, y: i32) -> Point {
         Point { x: x, y: y }
     }
 
+    /// Returns the index of the point in a grid of width `w` and height `h`, indexed from left to
+    /// right and from top to bottom, starting with 0. Returns `None` if the point lies outside of
+    /// the grid.
     #[inline]
     pub fn coord(&self, w: usize, h: usize) -> Option<usize> {
         if self.x < 0 || self.y < 0 || self.x as usize >= w || self.y as usize >= h {
