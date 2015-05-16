@@ -200,6 +200,25 @@ impl<'a> Author<'a> {
         len - cmp::max(rel_min_crossing, self.min_crossing)
     }
 
+    /// Returns a factor for the word count estimate of a range, depending on how many neighboring
+    /// cells are already filled: This lowers the estimate of a range that is adjacent to a
+    /// parallel word, and makes such a range more likely to be considered next. This is desirable
+    /// because it will lead to a much more restricted set of options in the next turn, and makes
+    /// iteration over matches more efficient as the words are indexed by n-grams.
+    fn restriction_multiplier(&self, range: Range) -> f32 {
+        let mut mul = 1.;
+        let odp = range.dir.other().point();
+        for p in range.points().filter(|&p| !self.cw.is_letter(p)) {
+            // TODO: Figure out the ideal factors.
+            mul *= match (self.cw.is_letter(p - odp), self.cw.is_letter(p + odp)) {
+                (false, false) => 1.5, // Neighbors are empty.
+                (true, true) =>   0.5, // Very preferable: Both neighbors are letters.
+                _ =>              0.8, // Also preferable: One neighbor is a letter.
+            }
+        }
+        mul
+    }
+
     fn add_range(&self, rs: &mut RangeSet, range: Range) {
         let p = range.point;
         let dp = range.dir.point();
@@ -209,7 +228,7 @@ impl<'a> Author<'a> {
                 && self.is_min_crossing_possible_without(self.cw.get_range_after(&range), range) {
             let est = self.stats.estimate_matches(&self.cw.chars(range).collect());
             if est != 0. && rs.ranges.insert(range) {
-                rs.est += est;
+                rs.est += est * self.restriction_multiplier(range);
             }
         }
     }
