@@ -1,9 +1,11 @@
+[![Build Status](https://travis-ci.org/afck/crosswords-rs.svg?branch=master)](https://travis-ci.org/afck/crosswords-rs)
+
 # Crosswords-rs
 
 A crosswords generator written in [Rust](https://github.com/rust-lang/rust).
 
-Crosswords-rs reads a list of words and performs a depth-first search of all possible arrangements
-of a subset of these words to fill a grid, satisfying a configurable set of requirements, e. g.:
+Crosswords-rs reads a list of words and performs a search of all possible arrangements of a
+subset of these words to fill a grid, satisfying a configurable set of requirements, e. g.:
 
 * Every word must cross at least 2 other words.
 * At least 50 % of the letters of each word must belong to a perpendicular word.
