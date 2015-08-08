@@ -1,6 +1,7 @@
 use cw::{BLOCK, CVec};
 use std::cmp;
 use std::collections::HashMap;
+use std::iter;
 use std::usize;
 use word_constraint::WordConstraint;
 
@@ -92,7 +93,7 @@ impl WordStats {
         for i in pattern.iter().enumerate()
                 .filter(|&(_, ch)| ch == &BLOCK)
                 .map(|(i, _)| i)
-                .chain(Some(len).into_iter()) {
+                .chain(iter::once(len)) {
             if i > pos {
                 probability *= self.get_estimate(&pattern[pos..i], pos, len) / total;
                 if probability == 0. {

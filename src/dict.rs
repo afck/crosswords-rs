@@ -5,6 +5,7 @@ use std::ascii::AsciiExt;
 use std::cmp;
 use std::collections::{HashMap, HashSet};
 use std::slice;
+use std::iter;
 use word_constraint::WordConstraint;
 
 fn matches(word: &CVec, pattern: &CVec) -> bool {
@@ -119,7 +120,7 @@ impl Dict {
         for i in pattern.iter().enumerate()
                 .filter(|&(_, ch)| ch == &BLOCK)
                 .map(|(i, _)| i)
-                .chain(Some(len).into_iter()) {
+                .chain(iter::once(len)) {
             if i > pos {
                 let subword = &pattern[pos..i];
                 let n = cmp::min(self.max_n, subword.len());

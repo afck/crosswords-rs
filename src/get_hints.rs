@@ -75,7 +75,7 @@ fn get_hint_from_article(article: String, word: &str, lang: &str) -> String {
 }
 
 fn download_from(url: String) -> String {
-    let mut client = Client::new();
+    let client = Client::new();
     let mut res = client.get(&url[..]).send().unwrap();
     let mut body = String::new();
     res.read_to_string(&mut body).unwrap();
