@@ -1,7 +1,6 @@
 use cw::{CVec, BLOCK};
 use rand;
 use rand::Rng;
-use std::ascii::AsciiExt;
 use std::cmp;
 use std::collections::{HashMap, HashSet};
 use std::slice;
@@ -79,16 +78,16 @@ impl Dict {
         dict
     }
 
+    fn replace_special(string_word: &str) -> String {
+        string_word.replace("Ä", "AE")
+                   .replace("Ö", "OE")
+                   .replace("Ü", "UE")
+                   .replace("ß", "SS")
+    }
+
     fn normalize_word(string_word: String) -> Option<CVec> {
-        let word: CVec = string_word.to_uppercase().trim()
-                       .replace("ä", "AE")
-                       .replace("Ä", "AE")
-                       .replace("ö", "OE")
-                       .replace("Ö", "OE")
-                       .replace("ü", "UE")
-                       .replace("Ü", "UE")
-                       .replace("ß", "SS").chars().collect();
-        if word.iter().all(|&c| c.is_alphabetic() && c.is_ascii()) && word.len() > 1 {
+        let word: CVec = Dict::replace_special(string_word.to_uppercase().trim()).chars().collect();
+        if word.iter().all(|&c| c.is_alphabetic()) && word.len() > 1 {
             Some(word)
         } else {
             None
@@ -154,6 +153,8 @@ impl Dict {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cw::CVec;
+    use std::collections::HashSet;
 
     #[test]
     fn test() {
@@ -165,6 +166,16 @@ mod tests {
         assert_eq!(0, dict.matching_words("T#O".chars().collect()).count());
         assert_eq!(0, dict.matching_words("F###".chars().collect()).count());
         assert_eq!(0, dict.matching_words("##".chars().collect()).count());
+    }
+
+    #[test]
+    fn test_to_cvec_set() {
+        let words_vec = vec!("Öha", "Düsenjäger", "H4X0R", "Wow!", "Fuß");
+        let words = Dict::to_cvec_set(words_vec.into_iter().map(|s| s.to_string()));
+        let expected: HashSet<CVec> = vec!("FUSS".chars().collect(),
+                                           "DUESENJAEGER".chars().collect(),
+                                           "OEHA".chars().collect()).into_iter().collect();
+        assert_eq!(expected, words);
     }
 }
 
