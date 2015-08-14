@@ -80,8 +80,7 @@ impl Dict {
     }
 
     fn normalize_word(string_word: String) -> Option<CVec> {
-        // TODO: Use to_uppercase() once it's stable.
-        let word: CVec = string_word.to_ascii_uppercase().trim()
+        let word: CVec = string_word.to_uppercase().trim()
                        .replace("ä", "AE")
                        .replace("Ä", "AE")
                        .replace("ö", "OE")
