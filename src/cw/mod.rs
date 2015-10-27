@@ -85,7 +85,7 @@ impl Crosswords {
     }
 
     /// Returns the set of words that are present in the grid.
-    pub fn get_words<'a>(&'a self) -> &'a HashSet<CVec> {
+    pub fn get_words(&self) -> &HashSet<CVec> {
         &self.words
     }
 
@@ -155,13 +155,13 @@ impl Crosswords {
     }
 
     /// An iterator over the characters in the given range.
-    pub fn chars<'a>(&'a self, range: Range) -> RangeIter<'a> {
+    pub fn chars(&self, range: Range) -> RangeIter {
         RangeIter::new(range, &self)
     }
 
     /// An iterator over the characters of the word in the given position. If there is no word, the
     /// iterator will be empty.
-    pub fn chars_at<'a>(&'a self, point: Point, dir: Dir) -> RangeIter<'a> {
+    pub fn chars_at(&self, point: Point, dir: Dir) -> RangeIter {
         self.chars(self.get_word_range_at(point, dir))
     }
 
@@ -178,7 +178,7 @@ impl Crosswords {
         existing
     }
 
-    fn word_iter<'a>(word: &'a CVec, point: Point, dir: Dir) -> Zip<slice::Iter<'a, char>, PointIter> {
+    fn word_iter(word: &CVec, point: Point, dir: Dir) -> Zip<slice::Iter<char>, PointIter> {
         word.iter().zip(PointIter::new(point, dir, word.len()))
     }
 
@@ -335,7 +335,7 @@ impl Crosswords {
     }
 
     /// Returns an iterator over the ranges containing the words.
-    pub fn word_ranges<'a>(&'a self) -> RangesIter<'a> {
+    pub fn word_ranges(&self) -> RangesIter {
         RangesIter::new(&self)
     }
 
@@ -388,15 +388,14 @@ impl Crosswords {
     /// Returns an iterator over the `PrintItem`s representing the current state of the crosswords,
     /// including all borders and cell contents, from left to right, from top to bottom. They can
     /// be converted to text or graphics to display the grid.
-    pub fn print_items<'a>(&'a self) -> PrintIter<'a> {
+    pub fn print_items(&self) -> PrintIter {
         PrintIter::new(&self)
     }
 
     /// Returns an iterator over all pairs of points that define the border of the cluster of empty
     /// cells which the given point belongs to. If the cell at that point is not empty, the
     /// iterator is empty.
-    pub fn get_boundary_iter_for<'a>(&'a self, point: Point, range: Option<Range>)
-            -> BoundaryIter<'a> {
+    pub fn get_boundary_iter_for(&self, point: Point, range: Option<Range>) -> BoundaryIter {
         BoundaryIter::new(point, range, &self)
     }
 }

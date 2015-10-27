@@ -62,7 +62,7 @@ struct StackItem<'a> {
 
 /// An `Author` produces crossword grids from a given set of dictionaries.
 pub struct Author<'a> {
-    dicts: &'a Vec<Dict>,
+    dicts: &'a [Dict],
     cw: Crosswords,
     min_crossing: usize,
     min_crossing_rel: f32,
@@ -88,7 +88,7 @@ macro_rules! result_range_set {
 
 impl<'a> Author<'a> {
     /// Creates a new `Author` with the given initial crosswords grid and the given dictionaries.
-    pub fn new(init_cw: &Crosswords, dicts: &'a Vec<Dict>) -> Author<'a> {
+    pub fn new(init_cw: &Crosswords, dicts: &'a [Dict]) -> Author<'a> {
         let mut stats = WordStats::new(3);
         stats.add_words(dicts.iter().flat_map(|dict| dict.all_words()));
         Author {
@@ -304,10 +304,10 @@ impl<'a> Author<'a> {
     fn get_ranges_for_empty(&self) -> RangeSet {
         let mut result = RangeSet::new();
         let point = Point::new(0, 0);
-        for len in (2..(1 + self.cw.get_width())) {
+        for len in 2..(1 + self.cw.get_width()) {
             self.add_range(&mut result, Range { point: point, dir: Dir::Right, len: len });
         }
-        for len in (2..(1 + self.cw.get_height())) {
+        for len in 2..(1 + self.cw.get_height()) {
             self.add_range(&mut result, Range { point: point, dir: Dir::Down, len: len });
         }
         result
@@ -409,7 +409,7 @@ impl<'a> Author<'a> {
                 // TODO: Save the current range set as a "try next" hint. (Is there a way to make
                 //       that work recursively ...?)
                 if Author::range_meets(&item.range, &bt_ranges)
-                        && (item.attempts < self.max_attempts || self.stack.len() == 0) {
+                        && (item.attempts < self.max_attempts || self.stack.is_empty()) {
                     bt_ranges.extend(item.bt_ranges);
                     iter = item.iter;
                     attempts = item.attempts;

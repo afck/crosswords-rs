@@ -104,14 +104,14 @@ impl Dict {
     }
 
     /// Return an iterator over all words in the dictionary.
-    pub fn all_words<'a>(&'a self) -> slice::Iter<'a, CVec> {
+    pub fn all_words(&self) -> slice::Iter<CVec> {
         self.words.iter()
     }
 
-    fn get_matching_word_list<'a>(&'a self, pattern: &CVec) -> &'a Vec<usize> {
+    fn get_matching_word_list(&self, pattern: &CVec) -> &Vec<usize> {
         let len = pattern.len();
-        let mut list: &'a Vec<usize> = self.get_list(&WordConstraint::Length(pattern.len()));
-        if list.len() == 0 {
+        let mut list: &Vec<usize> = self.get_list(&WordConstraint::Length(pattern.len()));
+        if list.is_empty() {
             return list;
         }
         let mut pos = 0;
@@ -127,7 +127,7 @@ impl Dict {
                     let new_list = self.get_list(&wc);
                     if list.len() > new_list.len() {
                         list = new_list;
-                        if list.len() == 0 {
+                        if list.is_empty() {
                             return list;
                         }
                     }
@@ -139,7 +139,7 @@ impl Dict {
     }
 
     /// Return an iterator over all words in the dictionary matching the given pattern.
-    pub fn matching_words<'a>(&'a self, pattern: CVec) -> PatternIter<'a> {
+    pub fn matching_words(&self, pattern: CVec) -> PatternIter {
         let list = self.get_matching_word_list(&pattern);
         PatternIter {
             dict: self,

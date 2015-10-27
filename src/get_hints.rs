@@ -38,7 +38,7 @@ fn get_hint_from_article(article: String, word: &str, lang: &str) -> String {
         // Replace links with their link text.
         (r#"\[\[([^\]]*\|)?(?P<link>[^\|\]]*)\]\]"#, "$link"),
         // Display bold text as plain text.
-        (r#"'''(?P<bold>[^']*)'''"#, "$bold"))).trim().to_string();
+        (r#"'''(?P<bold>[^']*)'''"#, "$bold"))).trim().to_owned();
     let descr_init = match lang {
         "de" => " ist | bezeichnet | war | sind | waren ",
         "en" => " is | are | was | were ",
@@ -64,14 +64,14 @@ fn get_hint_from_article(article: String, word: &str, lang: &str) -> String {
             .or(ex_re1.captures(&clean_article.clone()))
             .or(ex_re2.captures(&clean_article.clone()))
             .or(ex_re3.captures(&clean_article.clone())) {
-        Some(captures) => captures.name("excerpt").unwrap().to_string(),
+        Some(captures) => captures.name("excerpt").unwrap().to_owned(),
         None => clean_article,
     };
     replace_all(excerpt, vec!(
         // Replace the word from the crosswords with ellipses.
         (&format!(r#"(?i){}"#, &word), "..."),
         // Replace any sequence of whitespace with a single space.
-        (r#"\s+"#, " "))).trim().to_string()
+        (r#"\s+"#, " "))).trim().to_owned()
 }
 
 fn download_from(url: String) -> String {
@@ -82,7 +82,7 @@ fn download_from(url: String) -> String {
     body
 }
 
-fn download_article(word: &String, lang: &String) -> String {
+fn download_article(word: &str, lang: &str) -> String {
     let mut cased_word = String::new();
     cased_word.extend(word[..1].chars());
     cased_word.extend(word[1..].to_ascii_lowercase().chars());
@@ -99,7 +99,7 @@ fn download_article(word: &String, lang: &String) -> String {
     body
 }
 
-fn get_hint(word: &String, lang: &String) -> String {
+fn get_hint(word: &str, lang: &str) -> String {
     let article = download_article(word, lang);
     // TODO: Remove markup. Or better: Find some external software that removes markup.
     // TODO: Escape HTML
@@ -122,7 +122,7 @@ fn test_get_hint_from_article() {
     let article = concat!(r#"
         {{Infobox Software
         | Name                              = Servo<!-- Nur falls abweichend vom Artikelnamen -->
-        | Logo                              = 
+        | Logo                              =
         | Screenshot                        = [[Datei:Servo rendering de wikipedia.png|320px]]
         | Website                           = [http://github.com/mozilla/servo]
         }}
@@ -131,10 +131,10 @@ fn test_get_hint_from_article() {
         r#"'''Servo''' ist eine [[Layout-Engine]], welche von [[Mozilla]] und '''Samsung''' "#,
         r#"entwickelt wird.<ref>[http://arstechnica.com] (englisch) – Artikel vom "#,
         r#"{{Datum|3|4|2013}} <small></ref> Der Prototyp zielt darauf ab, eine hochparallele "#,
-        r#"Umgebung zu erschaffen."#).to_string();
+        r#"Umgebung zu erschaffen."#).to_owned();
     let description = r#"eine Layout-Engine, welche von Mozilla und Samsung entwickelt wird"#
-        .to_string();
+        .to_owned();
     assert_eq!(description, get_hint_from_article(article, "Servo", "de"));
-    let convert = r#"distance of {{convert|2,900|km|mi}}"#.to_string();
-    assert_eq!(r#"distance of 2,900 km"#.to_string(), get_hint_from_article(convert, "Foo", "en"));
+    let convert = r#"distance of {{convert|2,900|km|mi}}"#.to_owned();
+    assert_eq!(r#"distance of 2,900 km"#.to_owned(), get_hint_from_article(convert, "Foo", "en"));
 }

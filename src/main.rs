@@ -113,7 +113,7 @@ pub fn main() {
     let samples = matches.opt_str("samples").map_or(1, |s| s.parse().unwrap());
     let verbose = matches.opt_present("v");
     let dicts = get_dicts(match matches.opt_count("d") {
-        0 => vec!("dict/favorites.txt".to_string(), "dict/dict.txt".to_string()),
+        0 => vec!("dict/favorites.txt".to_owned(), "dict/dict.txt".to_owned()),
         _ => matches.opt_strs("d"),
     }.into_iter(), min_word_len);
     let mut author = Author::new(&Crosswords::new(width, height), &dicts)

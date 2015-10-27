@@ -46,22 +46,22 @@ impl WordConstraint {
         }
     }
 
-    fn ngram_constraints<'a>(word: &'a CVec, n: usize) -> NgramIter<'a> {
+    fn ngram_constraints(word: &CVec, n: usize) -> NgramIter {
         fn to_constraint((ngram, (pos, len)): (&[char], (usize, usize))) -> WordConstraint {
             WordConstraint::with_ngram(ngram, pos, len)
         };
         word.windows(n).zip(iter::repeat(word.len()).enumerate()).map(to_constraint)
     }
 
-    fn all_ngram_constraints<'a>(word: &'a CVec, max_n: usize) -> AllNgramIter<'a> {
-        fn to_iter<'a>((word, n): (&'a CVec, usize)) -> NgramIter<'a> {
+    fn all_ngram_constraints(word: &CVec, max_n: usize) -> AllNgramIter {
+        fn to_iter((word, n): (&CVec, usize)) -> NgramIter {
             WordConstraint::ngram_constraints(word, n)
         };
         iter::repeat(word).zip(1..(max_n + 1)).flat_map(to_iter)
     }
 
     /// Return an iterator over all constraints applying to a given word.
-    pub fn all<'a>(word: &'a CVec, max_n: usize) -> AllConstraintsIter<'a> {
+    pub fn all(word: &CVec, max_n: usize) -> AllConstraintsIter {
         WordConstraint::all_ngram_constraints(word, max_n)
             .chain(Some(WordConstraint::Length(word.len())))
     }

@@ -5,14 +5,14 @@ use dict::{Dict, PatternIter};
 /// dictionaries.
 pub struct WordRangeIter<'a> {
     ranges: Vec<(Range, CVec)>,
-    dicts: &'a Vec<Dict>,
+    dicts: &'a [Dict],
     range_i: usize,
     dict_i: usize,
     pi: Option<PatternIter<'a>>,
 }
 
 impl<'a> WordRangeIter<'a> {
-    pub fn new(ranges: Vec<(Range, CVec)>, dicts: &'a Vec<Dict>) -> WordRangeIter<'a> {
+    pub fn new(ranges: Vec<(Range, CVec)>, dicts: &'a [Dict]) -> WordRangeIter<'a> {
         WordRangeIter {
             ranges: ranges,
             dicts: dicts,
@@ -76,13 +76,13 @@ mod tests {
             (Range { point: point, dir: Dir::Right, len: 3 }, "###".chars().collect()),
             (Range { point: point, dir: Dir::Right, len: 2 }, "##".chars().collect()),
         );
-        let dicts = vec!(
+        let dicts = [
             Dict::new(vec!("FAV".chars().collect(),
                            "TOOLONG".chars().collect()).iter()),
             Dict::new(vec!("YO".chars().collect(),
                            "FOO".chars().collect(),
                            "FOOBAR".chars().collect()).iter()),
-        );
+        ];
         let mut iter = WordRangeIter::new(ranges.clone(), &dicts);
         assert_eq!(Some((ranges[1].0, "FAV".chars().collect())), iter.next());
         assert_eq!(Some((ranges[0].0, "FOOBAR".chars().collect())), iter.next());

@@ -43,16 +43,16 @@ fn string_for(item: PrintItem, solution: bool) -> String {
             format!(r#"<div class="low {}"></div>"#, get_border_class(b)),
         PrintItem::VertBorder(b) =>
             format!(r#"<div class="high {}"></div>"#, get_border_class(b)),
-        PrintItem::Block => 
+        PrintItem::Block =>
             format!(r#"<div class="high blockcol"></div>"#),
         PrintItem::CharHint(c, hint) =>
             format!(concat!(r#"<div class = "high">"#,
                             r#"<span class="hint">{}</span>"#,
                             r#"<span class="solution">{}</span>"#,
                             r#"</div>"#),
-                    hint.map(|h| h.to_string()).unwrap_or("".to_string()),
-                    if solution { c.to_string() } else { "&nbsp;".to_string() }),
-        PrintItem::LineBreak => r#"</div><div class="row">"#.to_string(),
+                    hint.map(|h| h.to_string()).unwrap_or("".to_owned()),
+                    if solution { c.to_string() } else { "&nbsp;".to_owned() }),
+        PrintItem::LineBreak => r#"</div><div class="row">"#.to_owned(),
     }
 }
 
