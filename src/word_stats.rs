@@ -1,4 +1,4 @@
-use cw::{BLOCK, CVec};
+use cw::BLOCK;
 use std::cmp;
 use std::collections::HashMap;
 use std::iter;
@@ -26,7 +26,7 @@ impl WordStats {
     }
 
     /// Add all words in the iterator.
-    pub fn add_words<'a, T: Iterator<Item = &'a CVec>>(&mut self, words: T) {
+    pub fn add_words<'a, T: Iterator<Item = &'a Vec<char>>>(&mut self, words: T) {
         for word in words {
             self.add_word(word);
         }
@@ -55,7 +55,7 @@ impl WordStats {
     }
 
     /// Increase the word count for each `WordConstraint` matching the given word.
-    pub fn add_word(&mut self, word: &CVec) {
+    pub fn add_word(&mut self, word: &[char]) {
         self.min_len = cmp::min(self.min_len, word.len());
         for wc in WordConstraint::all(word, self.max_n) {
             self.increase(wc);
@@ -82,7 +82,7 @@ impl WordStats {
     }
 
     /// Compute an estimate of the number of words that will match the given pattern.
-    pub fn estimate_matches(&self, pattern: &CVec) -> f32 {
+    pub fn estimate_matches(&self, pattern: &[char]) -> f32 {
         let len = pattern.len();
         let total = self.get_total(len) as f32;
         if total == 0. {
@@ -109,25 +109,25 @@ impl WordStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cw::CVec;
     use std::collections::HashSet;
+    use test_util::str_to_cvec;
 
     #[test]
     fn test() {
-        let mut words: HashSet<CVec> = HashSet::new();
-        words.insert("ABCD".chars().collect());
-        words.insert("AXYZ".chars().collect());
+        let mut words: HashSet<Vec<char>> = HashSet::new();
+        words.insert(str_to_cvec("ABCD"));
+        words.insert(str_to_cvec("AXYZ"));
         let mut ws = WordStats::new(2);
         ws.add_words(words.iter());
-        assert_eq!(1., ws.estimate_matches(&"AB##".chars().collect()));
-        assert_eq!(1., ws.estimate_matches(&"#B##".chars().collect()));
-        assert_eq!(0., ws.estimate_matches(&"#AB#".chars().collect()));
-        assert_eq!(0., ws.estimate_matches(&"###A".chars().collect()));
-        assert_eq!(0., ws.estimate_matches(&"##".chars().collect()));
-        assert_eq!(0., ws.estimate_matches(&"#####".chars().collect()));
-        assert_eq!(2., ws.estimate_matches(&"A###".chars().collect()));
-        assert_eq!(1., ws.estimate_matches(&"#B##".chars().collect()));
-        assert_eq!(1., ws.estimate_matches(&"ABC#".chars().collect()));
-        assert_eq!(0., ws.estimate_matches(&"#C##".chars().collect()));
+        assert_eq!(1., ws.estimate_matches(&str_to_cvec("AB##")));
+        assert_eq!(1., ws.estimate_matches(&str_to_cvec("#B##")));
+        assert_eq!(0., ws.estimate_matches(&str_to_cvec("#AB#")));
+        assert_eq!(0., ws.estimate_matches(&str_to_cvec("###A")));
+        assert_eq!(0., ws.estimate_matches(&str_to_cvec("##")));
+        assert_eq!(0., ws.estimate_matches(&str_to_cvec("#####")));
+        assert_eq!(2., ws.estimate_matches(&str_to_cvec("A###")));
+        assert_eq!(1., ws.estimate_matches(&str_to_cvec("#B##")));
+        assert_eq!(1., ws.estimate_matches(&str_to_cvec("ABC#")));
+        assert_eq!(0., ws.estimate_matches(&str_to_cvec("#C##")));
     }
 }

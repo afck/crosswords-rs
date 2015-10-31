@@ -1,10 +1,10 @@
-use cw::{CVec, Range};
+use cw::Range;
 use dict::{Dict, PatternIter};
 
 /// An iterator over all possibilities to fill one of the given ranges with a word from a set of
 /// dictionaries.
 pub struct WordRangeIter<'a> {
-    ranges: Vec<(Range, CVec)>,
+    ranges: Vec<(Range, Vec<char>)>,
     dicts: &'a [Dict],
     range_i: usize,
     dict_i: usize,
@@ -12,7 +12,7 @@ pub struct WordRangeIter<'a> {
 }
 
 impl<'a> WordRangeIter<'a> {
-    pub fn new(ranges: Vec<(Range, CVec)>, dicts: &'a [Dict]) -> WordRangeIter<'a> {
+    pub fn new(ranges: Vec<(Range, Vec<char>)>, dicts: &'a [Dict]) -> WordRangeIter<'a> {
         WordRangeIter {
             ranges: ranges,
             dicts: dicts,
@@ -23,7 +23,7 @@ impl<'a> WordRangeIter<'a> {
     }
 
     #[inline]
-    fn get_word(&mut self) -> Option<CVec> {
+    fn get_word(&mut self) -> Option<Vec<char>> {
         match self.pi {
             None => None,
             Some(ref mut iter) => iter.next().cloned(),
@@ -39,7 +39,7 @@ impl<'a> WordRangeIter<'a> {
             }
         }
         if let Some(&(_, ref pattern)) = self.ranges.get(self.range_i) {
-            self.pi = self.dicts.get(self.dict_i).map(|dict| dict.matching_words(pattern.clone()));
+            self.pi = self.dicts.get(self.dict_i).map(|dict| dict.matching_words(&pattern));
             self.pi.is_some()
         } else {
             false
@@ -48,9 +48,9 @@ impl<'a> WordRangeIter<'a> {
 }
 
 impl<'a> Iterator for WordRangeIter<'a> {
-    type Item = (Range, CVec);
+    type Item = (Range, Vec<char>);
 
-    fn next(&mut self) -> Option<(Range, CVec)> {
+    fn next(&mut self) -> Option<(Range, Vec<char>)> {
         let mut oword = self.get_word();
         while oword.is_none() && self.advance() {
             oword = self.get_word();

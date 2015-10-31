@@ -1,6 +1,6 @@
 mod word_range_iter;
 
-use cw::{BLOCK, Crosswords, CVec, Dir, Point, Range};
+use cw::{BLOCK, Crosswords, Dir, Point, Range};
 use dict::Dict;
 use word_stats::WordStats;
 use std::cmp;
@@ -65,7 +65,7 @@ pub struct Author<'a> {
     dicts: &'a [Dict],
     cw: Crosswords,
     min_crossing: usize,
-    min_crossing_rel: f32,
+    min_crossing_percent: usize,
     max_attempts: usize,
     stats: WordStats,
     verbose: bool,
@@ -97,7 +97,7 @@ impl<'a> Author<'a> {
             cw: init_cw.clone(),
             verbose: false,
             min_crossing: 2,
-            min_crossing_rel: 0.,
+            min_crossing_percent: 0,
             max_attempts: usize::MAX,
             stack: Vec::new(),
         }
@@ -105,12 +105,13 @@ impl<'a> Author<'a> {
 
     /// Sets the values for the minimum absolute and relative numbers of letters in each word that
     /// are required to be shared with a perpendicular word, and return the modified `Author`.
-    pub fn with_min_crossing(mut self, min_crossing: usize, min_crossing_rel: f32) -> Author<'a> {
-        if min_crossing_rel < 0. || min_crossing_rel > 1. {
-            panic!("min_crossing_rel must be between 0 and 1");
+    pub fn with_min_crossing(mut self, min_crossing: usize, min_crossing_percent: usize)
+            -> Author<'a> {
+        if min_crossing_percent > 100 {
+            panic!("min_crossing_percent must be between 0 and 100");
         }
         self.min_crossing = min_crossing;
-        self.min_crossing_rel = min_crossing_rel;
+        self.min_crossing_percent = min_crossing_percent;
         self
     }
 
@@ -131,12 +132,12 @@ impl<'a> Author<'a> {
     }
 
     /// Returns the index of the dictionary containing the given word, or None if not found.
-    pub fn get_word_category(&self, word: &CVec) -> Option<usize> {
+    pub fn get_word_category(&self, word: &[char]) -> Option<usize> {
         self.dicts.iter().position(|dict| dict.contains(word))
     }
 
     fn is_min_crossing_possible_without(&self, range: Range, filled_range: Range) -> bool {
-        if self.min_crossing_rel == 1. {
+        if self.min_crossing_percent == 100 {
             return range.len == 0 || range.len >= self.stats.get_min_len();
         }
         if range.len < 2 {
@@ -179,7 +180,7 @@ impl<'a> Author<'a> {
             return false;
         }
         // Make sure it doesn't make min_crossing crossing words impossible for the perpendicular.
-        if self.min_crossing_rel == 1. {
+        if self.min_crossing_percent == 100 {
             return true; // Then leaving unfilled length-1 ranges isn't allowed anyway.
         }
         let r = if self.cw.is_letter(point) {
@@ -196,7 +197,7 @@ impl<'a> Author<'a> {
         if self.min_crossing > len {
             return len;
         }
-        let rel_min_crossing = (self.min_crossing_rel * (len as f32)) as usize;
+        let rel_min_crossing = (self.min_crossing_percent * len / 100) as usize;
         len - cmp::max(rel_min_crossing, self.min_crossing)
     }
 
@@ -226,7 +227,8 @@ impl<'a> Author<'a> {
                 && self.wouldnt_block(range, p + dp * range.len)
                 && self.is_min_crossing_possible_without(self.cw.get_range_before(&range), range)
                 && self.is_min_crossing_possible_without(self.cw.get_range_after(&range), range) {
-            let est = self.stats.estimate_matches(&self.cw.chars(range).collect());
+            let pattern: Vec<_> = self.cw.chars(range).collect();
+            let est = self.stats.estimate_matches(&pattern);
             if est != 0. && rs.ranges.insert(range) {
                 rs.est += est * self.restriction_multiplier(range);
             }
@@ -340,8 +342,8 @@ impl<'a> Author<'a> {
         result
     }
 
-    fn get_sorted_ranges(&self, range_set: HashSet<Range>) -> Vec<(Range, CVec)> {
-        let mut ranges: Vec<(Range, CVec)> = range_set.into_iter()
+    fn get_sorted_ranges(&self, range_set: HashSet<Range>) -> Vec<(Range, Vec<char>)> {
+        let mut ranges: Vec<(Range, Vec<char>)> = range_set.into_iter()
             .map(|range| (range, self.cw.chars(range).collect())).collect();
         ranges.sort_by(|r0, r1| self.range_score(&r1.0).cmp(&self.range_score(&r0.0)));
         ranges

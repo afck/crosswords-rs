@@ -70,6 +70,7 @@ impl <'a> Iterator for BoundaryIter<'a> {
 #[cfg(test)]
 mod tests {
     use cw::{Crosswords, Dir, Point, Range};
+    use test_util::str_to_cvec;
 
     fn range_r(x: i32, y: i32) -> Option<(Point, Point)> {
         Some((Point::new(x, y), Point::new(x + 1, y)))
@@ -86,8 +87,8 @@ mod tests {
         // ##++C
         // AB###
         let mut cw = Crosswords::new(5, 3);
-        cw.try_word(Point::new(0, 2), Dir::Right, &"AB".chars().collect());
-        cw.try_word(Point::new(4, 0), Dir::Down, &"AC".chars().collect());
+        cw.try_word(Point::new(0, 2), Dir::Right, &str_to_cvec("AB"));
+        cw.try_word(Point::new(4, 0), Dir::Down, &str_to_cvec("AC"));
         let range = Range { point: Point::new(2, 1), dir: Dir::Right, len: 2 };
         let mut iter = cw.get_boundary_iter_for(Point::new(0, 0), Some(range));
         assert_eq!(range_d(3, 0), iter.next());

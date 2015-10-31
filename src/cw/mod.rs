@@ -21,8 +21,6 @@ use cw::print_iter::PrintIter;
 use cw::range_iter::RangeIter;
 use cw::ranges_iter::RangesIter;
 
-pub type CVec = Vec<char>;
-
 pub const BLOCK: char = '#';
 
 /// The possible directions for words: `Right` and `Down`.
@@ -55,10 +53,10 @@ impl Dir {
 pub struct Crosswords {
     width: usize,
     height: usize,
-    chars: CVec,
+    chars: Vec<char>,
     right_border: Vec<bool>,
     down_border: Vec<bool>,
-    words: HashSet<CVec>,
+    words: HashSet<Vec<char>>,
 }
 
 impl Crosswords {
@@ -85,7 +83,7 @@ impl Crosswords {
     }
 
     /// Returns the set of words that are present in the grid.
-    pub fn get_words(&self) -> &HashSet<CVec> {
+    pub fn get_words(&self) -> &HashSet<Vec<char>> {
         &self.words
     }
 
@@ -166,7 +164,7 @@ impl Crosswords {
     }
 
     /// Returns word in the given position.
-    pub fn word_at(&self, point: Point, dir: Dir) -> CVec {
+    pub fn word_at(&self, point: Point, dir: Dir) -> Vec<char> {
         self.chars_at(point, dir).collect()
     }
 
@@ -178,13 +176,13 @@ impl Crosswords {
         existing
     }
 
-    fn word_iter(word: &CVec, point: Point, dir: Dir) -> Zip<slice::Iter<char>, PointIter> {
+    fn word_iter(word: &[char], point: Point, dir: Dir) -> Zip<slice::Iter<char>, PointIter> {
         word.iter().zip(PointIter::new(point, dir, word.len()))
     }
 
     /// Returns whether the given word could be inserted in that position, without conflicting with
     /// other words.
-    pub fn is_word_allowed(&self, point: Point, dir: Dir, word: &CVec) -> bool {
+    pub fn is_word_allowed(&self, point: Point, dir: Dir, word: &[char]) -> bool {
         let dp = dir.point();
         let len = word.len() as i32;
         !self.words.contains(word) && len > 1
@@ -193,7 +191,7 @@ impl Crosswords {
             && Self::word_iter(word, point, dir).all(|(&c, p)| self.is_char_allowed(p, c))
     }
 
-    fn push_word(&mut self, point: Point, dir: Dir, word: &CVec) {
+    fn push_word(&mut self, point: Point, dir: Dir, word: &[char]) {
         for (&c, p) in Self::word_iter(word, point, dir) {
             let existing = self.word_at(p, dir);
             self.words.remove(&existing);
@@ -202,11 +200,11 @@ impl Crosswords {
         for p in PointIter::new(point, dir, word.len() - 1) {
             self.set_border(p, dir, false);
         }
-        self.words.insert(word.clone());
+        self.words.insert(word.to_vec());
     }
 
     /// Removes and returns the word from the given position.
-    pub fn pop_word(&mut self, point: Point, dir: Dir) -> CVec {
+    pub fn pop_word(&mut self, point: Point, dir: Dir) -> Vec<char> {
         let word: Vec<_> = self.word_at(point, dir);
         if word.len() <= 1 {
             return Vec::new();
@@ -223,7 +221,7 @@ impl Crosswords {
     }
 
     /// Inserts the word in the given position if that is allowed, otherwise returns `false`.
-    pub fn try_word(&mut self, point: Point, dir: Dir, word: &CVec) -> bool {
+    pub fn try_word(&mut self, point: Point, dir: Dir, word: &[char]) -> bool {
         if self.is_word_allowed(point, dir, word) {
             self.push_word(point, dir, word);
             true
@@ -427,6 +425,7 @@ impl Display for Crosswords {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_util::str_to_cvec;
 
     #[test]
     fn test_put_word() {
@@ -435,16 +434,16 @@ mod tests {
         let p01 = Point::new(0, 1);
         let p30 = Point::new(3, 0);
         // Words are too long:
-        assert_eq!(false, cw.try_word(p00, Dir::Down, &"FOO".chars().collect()));
-        assert_eq!(false, cw.try_word(p00, Dir::Right, &"FOOBARBAZ".chars().collect()));
+        assert_eq!(false, cw.try_word(p00, Dir::Down, &str_to_cvec("FOO")));
+        assert_eq!(false, cw.try_word(p00, Dir::Right, &str_to_cvec("FOOBARBAZ")));
         // BAR fits horizontally, but cannot be duplicated.
-        assert_eq!(true, cw.try_word(p00, Dir::Right, &"BAR".chars().collect()));
-        assert_eq!(false, cw.try_word(p01, Dir::Right, &"BAR".chars().collect()));
+        assert_eq!(true, cw.try_word(p00, Dir::Right, &str_to_cvec("BAR")));
+        assert_eq!(false, cw.try_word(p01, Dir::Right, &str_to_cvec("BAR")));
         assert_eq!("BAR".to_string(), cw.chars_at(p00, Dir::Right).collect::<String>());
-        assert_eq!(true, cw.try_word(p30, Dir::Right, &"BAZ".chars().collect()));
+        assert_eq!(true, cw.try_word(p30, Dir::Right, &str_to_cvec("BAZ")));
         // BARBAZ is also a word. Combine BAR and BAZ, so that they are free again:
-        assert_eq!(true, cw.try_word(p00, Dir::Right, &"BARBAZ".chars().collect()));
-        assert_eq!(true, cw.try_word(p01, Dir::Right, &"BAR".chars().collect()));
-        assert_eq!(true, cw.try_word(p00, Dir::Down, &"BB".chars().collect()));
+        assert_eq!(true, cw.try_word(p00, Dir::Right, &str_to_cvec("BARBAZ")));
+        assert_eq!(true, cw.try_word(p01, Dir::Right, &str_to_cvec("BAR")));
+        assert_eq!(true, cw.try_word(p00, Dir::Down, &str_to_cvec("BB")));
     }
 }

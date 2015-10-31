@@ -5,8 +5,8 @@ authors = ["Andreas Fackler <AndreasFackler@gmx.de>"]
 
 [dependencies]
 
-getopts = "*"
-rand = "*"
-hyper = "*"
-regex = "*"
+getopts = "0.2.*"
+rand = "0.3.*"
+hyper = "0.6.*"
+regex = "0.1.*"
 

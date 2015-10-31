@@ -8,6 +8,8 @@ mod cw;
 mod dict;
 mod word_constraint;
 mod word_stats;
+#[cfg(test)]
+mod test_util;
 
 use getopts::Options;
 use std::collections::HashMap;
@@ -44,12 +46,10 @@ fn print_usage(program: &str, opts: Options) {
 /// Score the crosswords grid according to how many borders and favorite words it contains.
 fn evaluate(cw: &Crosswords, author: &Author) -> i32 {
     let empty_borders = (cw.max_border_count() - cw.count_borders()) as i32;
-    let mut word_count = 0;
-    let mut word_category_count = 0;
-    for word in cw.get_words() {
-        word_count += 1;
-        word_category_count += author.get_word_category(word).unwrap() as i32;
-    }
+    let words = cw.get_words();
+    let word_count = words.len() as i32;
+    let word_category_count = words.into_iter().fold(0,
+        |sum, word| sum + author.get_word_category(word).unwrap()) as i32;
     empty_borders + word_count - 2 * word_category_count
 }
 
@@ -85,7 +85,7 @@ fn get_dicts<T: Iterator<Item = String>>(filenames: T, min_word_len: usize) -> V
     filenames.map(|filename| {
         let get_file_lines = |filename| BufReader::new(filename).lines().filter_map(Result::ok);
         let file_lines = File::open(filename).map(get_file_lines).unwrap();
-        let dict = Dict::new(Dict::to_cvec_set(file_lines)
+        let dict = Dict::new(Dict::create_cvec_set(file_lines)
                 .difference(&existing_words)
                 .filter(|word| word.len() >= min_word_len));
         existing_words.extend(dict.all_words().cloned());
@@ -107,7 +107,7 @@ pub fn main() {
         .map(|s| s.parse().unwrap()).collect());
     let (width, height): (usize, usize) = (size[0], size[1]);
     let min_crossing = matches.opt_str("c").map_or(2, |s| s.parse().unwrap());
-    let min_crossing_rel = 0.01 * matches.opt_str("p").map_or(30., |s| s.parse().unwrap());
+    let min_crossing_percent = matches.opt_str("p").map_or(30, |s| s.parse().unwrap());
     let min_word_len = matches.opt_str("m").map_or(2, |s| s.parse().unwrap());
     let max_attempts = matches.opt_str("max_attempts").map_or(usize::MAX, |s| s.parse().unwrap());
     let samples = matches.opt_str("samples").map_or(1, |s| s.parse().unwrap());
@@ -117,7 +117,7 @@ pub fn main() {
         _ => matches.opt_strs("d"),
     }.into_iter(), min_word_len);
     let mut author = Author::new(&Crosswords::new(width, height), &dicts)
-        .with_min_crossing(min_crossing, min_crossing_rel)
+        .with_min_crossing(min_crossing, min_crossing_percent)
         .with_verbosity(verbose)
         .with_max_attempts(max_attempts);
     let (mut best_cw, mut best_val) = (None, i32::MIN);

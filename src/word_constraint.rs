@@ -1,4 +1,3 @@
-use cw::CVec;
 use std::iter;
 use std::slice;
 use std::ops;
@@ -18,7 +17,7 @@ pub enum WordConstraint {
     TrigramAt([char; 3], usize, usize),
     /// Words with the given n-gram at the specified position. For n <= 3, the corresponding more
     /// specific variant should be used to avoid ambiguity and heap-allocating the n-gram.
-    NGramAt(CVec, usize, usize),
+    NGramAt(Vec<char>, usize, usize),
 }
 
 type NgramIter<'a> = iter::Map<
@@ -26,9 +25,9 @@ type NgramIter<'a> = iter::Map<
     fn((&[char], (usize, usize))) -> WordConstraint>;
 
 type AllNgramIter<'a> = iter::FlatMap<
-    iter::Zip<iter::Repeat<&'a CVec>, ops::Range<usize>>,
+    iter::Zip<iter::Repeat<&'a [char]>, ops::Range<usize>>,
     NgramIter<'a>,
-    fn((&'a Vec<char>, usize)) -> NgramIter<'a>>;
+    fn((&'a [char], usize)) -> NgramIter<'a>>;
 
 /// An iterator over all constraints applying to a given word.
 pub type AllConstraintsIter<'a> = iter::Chain<AllNgramIter<'a>, option::IntoIter<WordConstraint>>;
@@ -46,22 +45,22 @@ impl WordConstraint {
         }
     }
 
-    fn ngram_constraints(word: &CVec, n: usize) -> NgramIter {
+    fn ngram_constraints(word: &[char], n: usize) -> NgramIter {
         fn to_constraint((ngram, (pos, len)): (&[char], (usize, usize))) -> WordConstraint {
             WordConstraint::with_ngram(ngram, pos, len)
         };
         word.windows(n).zip(iter::repeat(word.len()).enumerate()).map(to_constraint)
     }
 
-    fn all_ngram_constraints(word: &CVec, max_n: usize) -> AllNgramIter {
-        fn to_iter((word, n): (&CVec, usize)) -> NgramIter {
+    fn all_ngram_constraints(word: &[char], max_n: usize) -> AllNgramIter {
+        fn to_iter((word, n): (&[char], usize)) -> NgramIter {
             WordConstraint::ngram_constraints(word, n)
         };
         iter::repeat(word).zip(1..(max_n + 1)).flat_map(to_iter)
     }
 
     /// Return an iterator over all constraints applying to a given word.
-    pub fn all(word: &CVec, max_n: usize) -> AllConstraintsIter {
+    pub fn all(word: &[char], max_n: usize) -> AllConstraintsIter {
         WordConstraint::all_ngram_constraints(word, max_n)
             .chain(Some(WordConstraint::Length(word.len())))
     }
