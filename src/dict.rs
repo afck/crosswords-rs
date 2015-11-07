@@ -57,9 +57,9 @@ impl Dict {
     }
 
     /// Create a new `Dict` from the given sequence of words.
-    pub fn new<'a, T: Iterator<Item = &'a Vec<char>>>(all_words: T) -> Dict {
+    pub fn new<'a, T: IntoIterator<Item = &'a Vec<char>>>(all_words: T) -> Dict {
         let mut dict = Dict {
-            words: all_words.cloned().collect(),
+            words: all_words.into_iter().cloned().collect(),
             lists: HashMap::new(),
             max_n: 3, // TODO: Make this a parameter?
             empty_list: Vec::new(),

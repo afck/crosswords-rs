@@ -1,7 +1,10 @@
+#![cfg_attr(feature = "nightly", feature(test))]
 extern crate getopts;
 extern crate hyper;
 extern crate regex;
 extern crate rand;
+#[cfg(all(test, feature = "nightly"))]
+extern crate test;
 
 mod author;
 mod cw;
