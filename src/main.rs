@@ -1,5 +1,6 @@
 #![cfg_attr(feature = "nightly", feature(test))]
 extern crate getopts;
+extern crate itertools;
 extern crate hyper;
 extern crate regex;
 extern crate rand;
@@ -86,11 +87,10 @@ fn create_opts() -> Options {
 fn get_dicts<T: Iterator<Item = String>>(filenames: T, min_word_len: usize) -> Vec<Dict> {
     let mut existing_words = HashSet::new();
     filenames.map(|filename| {
-        let get_file_lines = |filename| BufReader::new(filename).lines().filter_map(Result::ok);
-        let file_lines = File::open(filename).map(get_file_lines).unwrap();
-        let dict = Dict::new(Dict::create_cvec_set(file_lines)
-                .difference(&existing_words)
-                .filter(|word| word.len() >= min_word_len));
+        let file = File::open(filename).unwrap();
+        let dict = Dict::new(BufReader::new(file).lines()
+                .filter_map(Result::ok).filter_map(Dict::normalize_word)
+                .filter(|word| word.len() >= min_word_len && !existing_words.contains(word)));
         existing_words.extend(dict.all_words().cloned());
         dict
     }).collect()

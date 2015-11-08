@@ -67,26 +67,24 @@ mod tests {
     use super::*;
     use cw::{Dir, Point, Range};
     use dict::Dict;
+    use test_util::*;
 
     #[test]
     fn test_range_iter() {
         let point = Point::new(0, 0);
         let ranges = vec!(
-            (Range { point: point, dir: Dir::Right, len: 6 }, "######".chars().collect()),
-            (Range { point: point, dir: Dir::Right, len: 3 }, "###".chars().collect()),
-            (Range { point: point, dir: Dir::Right, len: 2 }, "##".chars().collect()),
+            (Range { point: point, dir: Dir::Right, len: 6 }, str_to_cvec("######")),
+            (Range { point: point, dir: Dir::Right, len: 3 }, str_to_cvec("###")),
+            (Range { point: point, dir: Dir::Right, len: 2 }, str_to_cvec("##")),
         );
         let dicts = [
-            Dict::new(vec!("FAV".chars().collect(),
-                           "TOOLONG".chars().collect()).iter()),
-            Dict::new(vec!("YO".chars().collect(),
-                           "FOO".chars().collect(),
-                           "FOOBAR".chars().collect()).iter()),
+            Dict::new(strs_to_cvecs(&["FAV", "TOOLONG"])),
+            Dict::new(strs_to_cvecs(&["YO", "FOO", "FOOBAR"])),
         ];
         let mut iter = WordRangeIter::new(ranges.clone(), &dicts);
-        assert_eq!(Some((ranges[1].0, "FAV".chars().collect())), iter.next());
-        assert_eq!(Some((ranges[0].0, "FOOBAR".chars().collect())), iter.next());
-        assert_eq!(Some((ranges[1].0, "FOO".chars().collect())), iter.next());
-        assert_eq!(Some((ranges[2].0, "YO".chars().collect())), iter.next());
+        assert_eq!(Some((ranges[1].0, str_to_cvec("FAV"))), iter.next());
+        assert_eq!(Some((ranges[0].0, str_to_cvec("FOOBAR"))), iter.next());
+        assert_eq!(Some((ranges[1].0, str_to_cvec("FOO"))), iter.next());
+        assert_eq!(Some((ranges[2].0, str_to_cvec("YO"))), iter.next());
     }
 }

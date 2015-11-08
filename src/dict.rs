@@ -1,8 +1,9 @@
 use cw::BLOCK;
+use itertools::Itertools;
 use rand;
 use rand::Rng;
 use std::cmp;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::slice;
 use std::iter;
 use word_constraint::WordConstraint;
@@ -50,16 +51,10 @@ pub struct Dict {
 }
 
 impl Dict {
-    /// Return a `HashSet` of the given words, as char vectors, replacing umlauts with
-    /// corresponding diphthongs and deduplicating the words.
-    pub fn create_cvec_set<T: Iterator<Item = String>>(string_words: T) -> HashSet<Vec<char>> {
-        string_words.filter_map(Dict::normalize_word).collect()
-    }
-
     /// Create a new `Dict` from the given sequence of words.
-    pub fn new<'a, T: IntoIterator<Item = &'a Vec<char>>>(all_words: T) -> Dict {
+    pub fn new<T, U>(all_words: T) -> Dict where T: IntoIterator<Item = U>, U: Into<Vec<char>> {
         let mut dict = Dict {
-            words: all_words.into_iter().cloned().collect(),
+            words: all_words.into_iter().map(|w| w.into()).unique().collect(),
             lists: HashMap::new(),
             max_n: 3, // TODO: Make this a parameter?
             empty_list: Vec::new(),
@@ -85,8 +80,10 @@ impl Dict {
                    .replace("ß", "SS")
     }
 
-    fn normalize_word(string_word: String) -> Option<Vec<char>> {
-        let word = Dict::replace_special(string_word.to_uppercase().trim());
+    /// Convert the `String` to a char vector, replacing umlauts with corresponding diphthongs.
+    /// Return `None` if the word contains an invalid character.
+    pub fn normalize_word<T: AsRef<str>>(str_word: T) -> Option<Vec<char>> {
+        let word = Dict::replace_special(str_word.as_ref().to_uppercase().trim());
         if word.chars().all(|c| c.is_alphabetic()) && !word.is_empty() {
             Some(word.chars().collect())
         } else {
@@ -153,14 +150,12 @@ impl Dict {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
-    use test_util::str_to_cvec;
+    use itertools::Itertools;
+    use test_util::*;
 
     #[test]
     fn test() {
-        let words_vec = vec!("FOO", "FOOBAR", "FOE", "TOE");
-        let words = Dict::create_cvec_set(words_vec.into_iter().map(|s| s.to_string()));
-        let dict = Dict::new(words.iter());
+        let dict = Dict::new(strs_to_cvecs(&["FOO", "FOOBAR", "FOE", "TOE"]));
         assert_eq!(2, dict.matching_words(&str_to_cvec("#OE")).count());
         assert_eq!(1, dict.matching_words(&str_to_cvec("F#E")).count());
         assert_eq!(0, dict.matching_words(&str_to_cvec("T#O")).count());
@@ -169,12 +164,10 @@ mod tests {
     }
 
     #[test]
-    fn test_create_cvec_set() {
-        let words_vec = vec!("Öha", "Düsenjäger", "H4X0R", "Wow!", "Fuß");
-        let words = Dict::create_cvec_set(words_vec.into_iter().map(|s| s.to_string()));
-        let expected: HashSet<Vec<char>> = vec!(str_to_cvec("FUSS"),
-                                                str_to_cvec("DUESENJAEGER"),
-                                                str_to_cvec("OEHA")).into_iter().collect();
+    fn test_normalize_word() {
+        let words= vec!("Öha", "Düsenjäger", "H4X0R", "Wow!", "Fuß").into_iter()
+            .filter_map(Dict::normalize_word).collect_vec();
+        let expected = strs_to_cvecs(&["OEHA", "DUESENJAEGER", "FUSS"]);
         assert_eq!(expected, words);
     }
 }

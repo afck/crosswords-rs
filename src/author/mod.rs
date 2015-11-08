@@ -2,6 +2,7 @@ mod word_range_iter;
 
 use cw::{BLOCK, Crosswords, Dir, Point, Range};
 use dict::Dict;
+use itertools::Itertools;
 use word_stats::WordStats;
 use std::cmp;
 use std::cmp::Ordering;
@@ -277,7 +278,7 @@ impl<'a> Author<'a> {
                     }
                 } else {
                     let mut rsets = candidate_points.into_iter()
-                        .filter_map(|p| self.get_all_ranges(p, odir, &result)).collect::<Vec<_>>();
+                        .filter_map(|p| self.get_all_ranges(p, odir, &result)).collect_vec();
                     if rsets.len() >= mnc + 1 {
                         rsets.sort_by(|rs0, rs1| rs0.partial_cmp(rs1).unwrap_or(Ordering::Equal));
                         let rs = RangeSet::union(rsets.into_iter().take(mnc + 1));
@@ -432,19 +433,19 @@ mod tests {
     use dict::Dict;
     #[cfg(feature = "nightly")]
     use test::Bencher;
-    use test_util::str_to_cvec;
+    use test_util::*;
 
     #[test]
     fn test_complete_cw_possible() {
-        let dicts = vec!(Dict::new(&[str_to_cvec("ABC"), str_to_cvec("EFG")]),
-            Dict::new(&[str_to_cvec("AEX"), str_to_cvec("BFX"), str_to_cvec("CGX")]));
+        let dicts = vec!(Dict::new(strs_to_cvecs(&["ABC", "EFG"])),
+            Dict::new(strs_to_cvecs(&["AEX", "BFX", "CGX"])));
         let mut author = Author::new(&Crosswords::new(3, 3), &dicts);
         assert!(author.complete_cw().is_some());
     }
 
     #[test]
     fn test_complete_cw_impossible() {
-        let dicts = vec!(Dict::new(&[str_to_cvec("ABC"), str_to_cvec("ABCD")]));
+        let dicts = vec!(Dict::new(strs_to_cvecs(&["ABC", "ABCD"])));
         let mut author = Author::new(&Crosswords::new(3, 3), &dicts);
         assert!(author.complete_cw().is_none());
     }
@@ -454,13 +455,11 @@ mod tests {
     fn bench_complete_cw(bencher: &mut Bencher) {
         let width = 5;
         let height = 4;
-        let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".as_bytes();
-        let horiz_words: Vec<Vec<char>> = letters.windows(width).map(
-            |s| String::from_utf8_lossy(s).chars().collect()).collect();
-        let vert_words: Vec<Vec<char>> = letters.windows(height).map(
-            |s| String::from_utf8_lossy(s).chars().collect()).collect();
-        let dicts = vec!(Dict::new(horiz_words.iter()), Dict::new(vert_words.iter()));
-        bencher.bench_n(250, |b| b.iter(|| {
+        let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[0..(width + height - 1)].as_bytes();
+        let horiz_words = letters.windows(width).map(String::from_utf8_lossy).map(str_to_cvec);
+        let vert_words = letters.windows(height).map(String::from_utf8_lossy).map(str_to_cvec);
+        let dicts = vec!(Dict::new(horiz_words), Dict::new(vert_words));
+        bencher.bench_n(10, |b| b.iter(|| {
             assert!(Author::new(&Crosswords::new(width, height), &dicts).complete_cw().is_some())
         }));
     }
