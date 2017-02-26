@@ -100,7 +100,7 @@ impl Dict {
 
     /// Return whether the given word is present in this dictionary.
     pub fn contains(&self, word: &[char]) -> bool {
-        self.matching_words(word.clone()).next().is_some()
+        self.matching_words(word).next().is_some()
     }
 
     /// Return an iterator over all words in the dictionary.

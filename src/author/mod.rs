@@ -281,7 +281,7 @@ impl<'a> Author<'a> {
             let mnc = self.get_max_noncrossing(range.len);
             if nc > mnc {
                 if mnc == 0 {
-                    for p in candidate_points.into_iter() {
+                    for p in candidate_points {
                         if let Some(rs) = self.get_all_ranges(p, odir, &result) {
                             result_range_set!(result, rs);
                         }
@@ -352,10 +352,12 @@ impl<'a> Author<'a> {
                 Some(r) => r,
                 _ => return result,
             };
-            for range in p_ranges.ranges.into_iter() {
+            for range in p_ranges.ranges {
                 if self.cw.chars(range).any(|c| c != BLOCK) {
                     self.add_range(&mut rs, range);
-                    result.iter().all(|r| rs.est < r.est) || return result;
+                    if result.iter().any(|r| rs.est >= r.est) {
+                        return result;
+                    }
                 }
             }
             rs.backtrack_ranges.extend(p_ranges.backtrack_ranges.into_iter());

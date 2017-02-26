@@ -40,7 +40,9 @@ impl<'a> BoundaryIter<'a> {
     }
 
     fn advance(&mut self) -> bool {
-        self.prev != Some(self.last) || return false;
+        if self.prev == Some(self.last) {
+            return false;
+        }
         let (p0, p1) = self.prev.unwrap_or(self.last);
         let dp = p1 - p0;
         let odp = turn(dp);
@@ -59,9 +61,13 @@ impl<'a> Iterator for BoundaryIter<'a> {
     type Item = (Point, Point);
 
     fn next(&mut self) -> Option<(Point, Point)> {
-        self.advance() || return None;
+        if !self.advance() {
+            return None;
+        }
         while !self.cw.contains(self.prev.unwrap().1) {
-            self.advance() || return None;
+            if !self.advance() {
+                return None;
+            }
         }
         Some(self.prev.unwrap())
     }

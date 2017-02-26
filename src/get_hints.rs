@@ -4,7 +4,6 @@
 //       It might be best to move the whole hint generation out of crosswords-rs. Instead, you
 //       could specify a hint generation program at the command line.
 use regex::Regex;
-use std::ascii::AsciiExt;
 use std::collections::HashMap;
 
 use std::io::Read;
@@ -13,7 +12,7 @@ use hyper::Client;
 
 fn replace_all<'a>(text: String, replacements: Vec<(&'a str, &'a str)>) -> String {
     let mut new_text = text;
-    for (re, repl) in replacements.into_iter() {
+    for (re, repl) in replacements {
         let temp_text = Regex::new(re).unwrap().replace_all(&new_text, repl).to_string();
         new_text = temp_text;
     }
@@ -89,9 +88,7 @@ fn download_from(url: String) -> String {
 }
 
 fn download_article(word: &str, lang: &str) -> String {
-    let mut cased_word = String::new();
-    cased_word.extend(word[..1].chars());
-    cased_word.extend(word[1..].to_ascii_lowercase().chars());
+    let cased_word = format!("{}{}", &word[..1], word[1..].to_lowercase());
     let url = format!("http://{}.wikipedia.org/w/index.php?title={}&action=raw",
                       lang,
                       cased_word);

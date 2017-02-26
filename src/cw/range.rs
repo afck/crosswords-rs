@@ -78,7 +78,9 @@ impl Range {
     /// Returns `true` if the ranges are adjacent to each other, i. e. they are disjoint and their
     /// union would be a range again.
     pub fn is_adjacent_to(&self, other: &Range) -> bool {
-        self.dir == other.dir || return false;
+        if self.dir != other.dir {
+            return false;
+        }
         let dp = self.dir.point();
         self.point + dp * self.len == other.point || other.point + dp * other.len == self.point
     }

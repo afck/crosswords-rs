@@ -162,7 +162,7 @@ impl Crosswords {
 
     /// An iterator over the characters in the given range.
     pub fn chars(&self, range: Range) -> RangeIter {
-        RangeIter::new(range, &self)
+        RangeIter::new(range, self)
     }
 
     /// An iterator over the characters of the word in the given position. If there is no word, the
@@ -332,7 +332,9 @@ impl Crosswords {
                 let point = Point::new(x, y);
                 if !points.contains(&point) && self.is_boundary_point(point) {
                     let boundary: HashSet<_> = self.get_boundary_iter_for(point, None).collect();
-                    boundary.len() > 1 || return boundary;
+                    if boundary.len() <= 1 {
+                        return boundary;
+                    }
                     if points.is_empty() || boundary.len() < smallest.len() {
                         smallest = boundary.clone();
                     }
@@ -345,7 +347,7 @@ impl Crosswords {
 
     /// Returns an iterator over the ranges containing the words.
     pub fn word_ranges(&self) -> RangesIter {
-        RangesIter::new(&self)
+        RangesIter::new(self)
     }
 
     /// Returns the range of the word the given point belongs to.
@@ -398,14 +400,14 @@ impl Crosswords {
     /// including all borders and cell contents, from left to right, from top to bottom. They can
     /// be converted to text or graphics to display the grid.
     pub fn print_items(&self) -> PrintIter {
-        PrintIter::new(&self)
+        PrintIter::new(self)
     }
 
     /// Returns an iterator over all pairs of points that define the border of the cluster of empty
     /// cells which the given point belongs to. If the cell at that point is not empty, the
     /// iterator is empty.
     pub fn get_boundary_iter_for(&self, point: Point, range: Option<Range>) -> BoundaryIter {
-        BoundaryIter::new(point, range, &self)
+        BoundaryIter::new(point, range, self)
     }
 }
 

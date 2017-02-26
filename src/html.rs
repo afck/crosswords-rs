@@ -42,7 +42,7 @@ fn string_for(item: PrintItem, solution: bool) -> String {
         PrintItem::HorizBorder(b) |
         PrintItem::Cross(b) => format!(r#"<div class="low {}"></div>"#, get_border_class(b)),
         PrintItem::VertBorder(b) => format!(r#"<div class="high {}"></div>"#, get_border_class(b)),
-        PrintItem::Block => format!(r#"<div class="high blockcol"></div>"#),
+        PrintItem::Block => r#"<div class="high blockcol"></div>"#.to_string(),
         PrintItem::CharHint(c, hint) => {
             format!(concat!(r#"<div class = "high">"#,
                             r#"<span class="hint">{}</span>"#,
@@ -91,7 +91,7 @@ fn write_hints<T: Write>(writer: &mut T,
             }
             if cw.has_hint_at_dir(p, dir) {
                 let word: String = cw.chars_at(p, dir).collect();
-                let hint = hint_text.get(&word).cloned().unwrap_or(format!("[{}]", word));
+                let hint = hint_text.get(&word).cloned().unwrap_or_else(|| format!("[{}]", word));
                 try!(write!(writer, "<b>{}.</b> {} &nbsp;", hint_count, hint));
             }
         }
