@@ -14,7 +14,7 @@ use hyper::Client;
 fn replace_all<'a>(text: String, replacements: Vec<(&'a str, &'a str)>) -> String {
     let mut new_text = text;
     for (re, repl) in replacements.into_iter() {
-        let temp_text = Regex::new(re).unwrap().replace_all(&new_text, repl);
+        let temp_text = Regex::new(re).unwrap().replace_all(&new_text, repl).to_string();
         new_text = temp_text;
     }
     new_text
@@ -64,7 +64,7 @@ fn get_hint_from_article(article: String, word: &str, lang: &str) -> String {
             .or(ex_re1.captures(&clean_article.clone()))
             .or(ex_re2.captures(&clean_article.clone()))
             .or(ex_re3.captures(&clean_article.clone())) {
-        Some(captures) => captures.name("excerpt").unwrap().to_owned(),
+        Some(captures) => captures.name("excerpt").unwrap().as_str().to_owned(),
         None => clean_article,
     };
     replace_all(excerpt, vec!(
@@ -93,7 +93,7 @@ fn download_article(word: &str, lang: &str) -> String {
         Regex::new(r#"^#((?i)REDIRECT|WEITERLEITUNG)\s*\[\[(?P<redir>[^\]]*)\]\]"#)
             .unwrap().captures(&body) {
         let url = format!("http://{}.wikipedia.org/w/index.php?title={}&action=raw",
-                          lang, captures.name("redir").unwrap().replace(" ", "_"));
+                          lang, captures.name("redir").unwrap().as_str().replace(" ", "_"));
         return download_from(url);
     }
     body
