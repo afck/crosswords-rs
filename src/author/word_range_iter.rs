@@ -72,15 +72,26 @@ mod tests {
     #[test]
     fn test_range_iter() {
         let point = Point::new(0, 0);
-        let ranges = vec!(
-            (Range { point: point, dir: Dir::Right, len: 6 }, str_to_cvec("######")),
-            (Range { point: point, dir: Dir::Right, len: 3 }, str_to_cvec("###")),
-            (Range { point: point, dir: Dir::Right, len: 2 }, str_to_cvec("##")),
-        );
-        let dicts = [
-            Dict::new(strs_to_cvecs(&["FAV", "TOOLONG"])),
-            Dict::new(strs_to_cvecs(&["YO", "FOO", "FOOBAR"])),
-        ];
+        let ranges = vec![(Range {
+                               point: point,
+                               dir: Dir::Right,
+                               len: 6,
+                           },
+                           str_to_cvec("######")),
+                          (Range {
+                               point: point,
+                               dir: Dir::Right,
+                               len: 3,
+                           },
+                           str_to_cvec("###")),
+                          (Range {
+                               point: point,
+                               dir: Dir::Right,
+                               len: 2,
+                           },
+                           str_to_cvec("##"))];
+        let dicts = [Dict::new(strs_to_cvecs(&["FAV", "TOOLONG"])),
+                     Dict::new(strs_to_cvecs(&["YO", "FOO", "FOOBAR"]))];
         let mut iter = WordRangeIter::new(ranges.clone(), &dicts);
         assert_eq!(Some((ranges[1].0, str_to_cvec("FAV"))), iter.next());
         assert_eq!(Some((ranges[0].0, str_to_cvec("FOOBAR"))), iter.next());

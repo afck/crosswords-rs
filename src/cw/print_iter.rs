@@ -64,10 +64,18 @@ impl<'a> Iterator for PrintIter<'a> {
         } else if self.between_chars {
             if self.between_lines {
                 let mut count = 0;
-                if self.cw.get_border(self.point, Dir::Down) { count += 1 }
-                if self.cw.get_border(self.point, Dir::Right) { count += 1 }
-                if self.cw.get_border(self.point + Point::new(1, 0), Dir::Down) { count += 1 }
-                if self.cw.get_border(self.point + Point::new(0, 1), Dir::Right) { count += 1 }
+                if self.cw.get_border(self.point, Dir::Down) {
+                    count += 1
+                }
+                if self.cw.get_border(self.point, Dir::Right) {
+                    count += 1
+                }
+                if self.cw.get_border(self.point + Point::new(1, 0), Dir::Down) {
+                    count += 1
+                }
+                if self.cw.get_border(self.point + Point::new(0, 1), Dir::Right) {
+                    count += 1
+                }
                 result = PrintItem::Cross(count > 1);
             } else {
                 result = PrintItem::VertBorder(self.cw.get_border(self.point, Dir::Right));
@@ -80,12 +88,15 @@ impl<'a> Iterator for PrintIter<'a> {
             } else {
                 result = match self.cw.get_char(self.point).unwrap() {
                     BLOCK => PrintItem::Block,
-                    c => PrintItem::CharHint(c, if self.cw.has_hint_at(self.point) {
-                            self.hint_count += 1;
-                            Some(self.hint_count)
-                        } else {
-                            None
-                        }),
+                    c => {
+                        PrintItem::CharHint(c,
+                                            if self.cw.has_hint_at(self.point) {
+                                                self.hint_count += 1;
+                                                Some(self.hint_count)
+                                            } else {
+                                                None
+                                            })
+                    }
                 };
             }
             self.between_chars = true;
@@ -93,4 +104,3 @@ impl<'a> Iterator for PrintIter<'a> {
         Some(result)
     }
 }
-

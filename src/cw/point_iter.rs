@@ -11,7 +11,11 @@ impl PointIter {
     /// Returns an iterator starting at the given point and proceeding in the given direction,
     /// which will be exhausted after it has returned `len` points.
     pub fn new(point: Point, dir: Dir, len: usize) -> PointIter {
-        PointIter { point: point, dp: dir.point(), len: len }
+        PointIter {
+            point: point,
+            dp: dir.point(),
+            len: len,
+        }
     }
 }
 
@@ -29,6 +33,7 @@ impl Iterator for PointIter {
         }
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) { (self.len, Some(self.len)) }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len, Some(self.len))
+    }
 }
-

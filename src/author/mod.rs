@@ -106,8 +106,10 @@ impl<'a> Author<'a> {
 
     /// Sets the values for the minimum absolute and relative numbers of letters in each word that
     /// are required to be shared with a perpendicular word, and return the modified `Author`.
-    pub fn with_min_crossing(mut self, min_crossing: usize, min_crossing_percent: usize)
-            -> Author<'a> {
+    pub fn with_min_crossing(mut self,
+                             min_crossing: usize,
+                             min_crossing_percent: usize)
+                             -> Author<'a> {
         if min_crossing_percent > 100 {
             panic!("min_crossing_percent must be between 0 and 100");
         }
@@ -148,12 +150,20 @@ impl<'a> Author<'a> {
         let odir = range.dir.other();
         let odp = odir.point();
         for p in range.points() {
-            let r0 = Range { point: p, dir: odir, len: 2 };
-            let r1 = Range { point: p - odp, dir: odir, len: 2 };
+            let r0 = Range {
+                point: p,
+                dir: odir,
+                len: 2,
+            };
+            let r1 = Range {
+                point: p - odp,
+                dir: odir,
+                len: 2,
+            };
             // TODO: Also consider stats here? Require word estimate > 0.
-            if !self.cw.both_borders(p, odir)
-                    || (!r0.intersects(&filled_range) && self.cw.is_range_free(r0))
-                    || (!r1.intersects(&filled_range) && self.cw.is_range_free(r1)) {
+            if !self.cw.both_borders(p, odir) ||
+               (!r0.intersects(&filled_range) && self.cw.is_range_free(r0)) ||
+               (!r1.intersects(&filled_range) && self.cw.is_range_free(r1)) {
                 c_opts += 1;
                 if c_opts >= self.min_crossing {
                     return true;
@@ -214,8 +224,8 @@ impl<'a> Author<'a> {
             // TODO: Figure out the ideal factors.
             mul *= match (self.cw.is_letter(p - odp), self.cw.is_letter(p + odp)) {
                 (false, false) => 1.5, // Neighbors are empty.
-                (true, true) =>   0.5, // Very preferable: Both neighbors are letters.
-                _ =>              0.8, // Also preferable: One neighbor is a letter.
+                (true, true) => 0.5, // Very preferable: Both neighbors are letters.
+                _ => 0.8, // Also preferable: One neighbor is a letter.
             }
         }
         mul
@@ -224,10 +234,9 @@ impl<'a> Author<'a> {
     fn add_range(&self, rs: &mut RangeSet, range: Range) {
         let p = range.point;
         let dp = range.dir.point();
-        if self.wouldnt_block(range, p - dp)
-                && self.wouldnt_block(range, p + dp * range.len)
-                && self.is_min_crossing_possible_without(self.cw.get_range_before(&range), range)
-                && self.is_min_crossing_possible_without(self.cw.get_range_after(&range), range) {
+        if self.wouldnt_block(range, p - dp) && self.wouldnt_block(range, p + dp * range.len) &&
+           self.is_min_crossing_possible_without(self.cw.get_range_before(&range), range) &&
+           self.is_min_crossing_possible_without(self.cw.get_range_after(&range), range) {
             let pattern: Vec<_> = self.cw.chars(range).collect();
             let est = self.stats.estimate_matches(&pattern);
             if est != 0. && rs.ranges.insert(range) {
@@ -245,11 +254,12 @@ impl<'a> Author<'a> {
         for i in 0..(t + 1) {
             for j in t..range.len {
                 if j - i > 0 {
-                    self.add_range(&mut rs, Range {
-                        point: range.point + dp * i,
-                        dir: dir,
-                        len: j - i + 1,
-                    });
+                    self.add_range(&mut rs,
+                                   Range {
+                                       point: range.point + dp * i,
+                                       dir: dir,
+                                       len: j - i + 1,
+                                   });
                     if best.iter().any(|r| rs.est >= r.est) {
                         return None; // Wouldn't have smaller est than the best range set so far.
                     }
@@ -264,9 +274,9 @@ impl<'a> Author<'a> {
         let mut result = None;
         for range in self.cw.word_ranges() {
             let odir = range.dir.other();
-            let candidate_points: Vec<Point> = range.points().filter(|&p| {
-                self.cw.both_borders(p, odir)
-            }).collect();
+            let candidate_points: Vec<Point> = range.points()
+                .filter(|&p| self.cw.both_borders(p, odir))
+                .collect();
             let nc = candidate_points.len();
             let mnc = self.get_max_noncrossing(range.len);
             if nc > mnc {
@@ -278,7 +288,8 @@ impl<'a> Author<'a> {
                     }
                 } else {
                     let mut rsets = candidate_points.into_iter()
-                        .filter_map(|p| self.get_all_ranges(p, odir, &result)).collect_vec();
+                        .filter_map(|p| self.get_all_ranges(p, odir, &result))
+                        .collect_vec();
                     if rsets.len() >= mnc + 1 {
                         rsets.sort_by(|rs0, rs1| rs0.partial_cmp(rs1).unwrap_or(Ordering::Equal));
                         let rs = RangeSet::union(rsets.into_iter().take(mnc + 1));
@@ -299,19 +310,29 @@ impl<'a> Author<'a> {
     }
 
     fn range_score(&self, range: &Range) -> i32 {
-        (self.cw.chars(*range).filter(|&c| c != BLOCK).count() + range.len) as i32
-            - Author::get_range_len_penalty(self.cw.get_range_before(range))
-            - Author::get_range_len_penalty(self.cw.get_range_after(range))
+        (self.cw.chars(*range).filter(|&c| c != BLOCK).count() + range.len) as i32 -
+        Author::get_range_len_penalty(self.cw.get_range_before(range)) -
+        Author::get_range_len_penalty(self.cw.get_range_after(range))
     }
 
     fn get_ranges_for_empty(&self) -> RangeSet {
         let mut result = RangeSet::new();
         let point = Point::new(0, 0);
         for len in 2..(1 + self.cw.get_width()) {
-            self.add_range(&mut result, Range { point: point, dir: Dir::Right, len: len });
+            self.add_range(&mut result,
+                           Range {
+                               point: point,
+                               dir: Dir::Right,
+                               len: len,
+                           });
         }
         for len in 2..(1 + self.cw.get_height()) {
-            self.add_range(&mut result, Range { point: point, dir: Dir::Down, len: len });
+            self.add_range(&mut result,
+                           Range {
+                               point: point,
+                               dir: Dir::Down,
+                               len: len,
+                           });
         }
         result
     }
@@ -345,7 +366,8 @@ impl<'a> Author<'a> {
 
     fn get_sorted_ranges(&self, range_set: HashSet<Range>) -> Vec<(Range, Vec<char>)> {
         let mut ranges: Vec<(Range, Vec<char>)> = range_set.into_iter()
-            .map(|range| (range, self.cw.chars(range).collect())).collect();
+            .map(|range| (range, self.cw.chars(range).collect()))
+            .collect();
         ranges.sort_by(|r0, r1| self.range_score(&r1.0).cmp(&self.range_score(&r0.0)));
         ranges
     }
@@ -358,7 +380,9 @@ impl<'a> Author<'a> {
                 println!("{}", &self.cw);
                 println!("Popping {} at ({}, {}) {:?}",
                          self.cw.chars(range).collect::<String>(),
-                         range.point.x, range.point.y, range.dir);
+                         range.point.x,
+                         range.point.y,
+                         range.dir);
             }
             self.cw.pop_word(range.point, range.dir);
         }
@@ -373,8 +397,8 @@ impl<'a> Author<'a> {
     }
 
     fn range_meets(range: &Range, bt_ranges: &HashSet<Range>) -> bool {
-        bt_ranges.is_empty()
-            || bt_ranges.iter().any(|r| range.intersects(r) || range.is_adjacent_to(r))
+        bt_ranges.is_empty() ||
+        bt_ranges.iter().any(|r| range.intersects(r) || range.is_adjacent_to(r))
     }
 
     pub fn complete_cw(&mut self) -> Option<Crosswords> {
@@ -382,10 +406,12 @@ impl<'a> Author<'a> {
         let mut attempts = 0;
         let mut iter = match self.pop() {
             Some(item) => item.iter, // Drop bt_ranges, as iter was successful!.
-            None => match self.get_range_set() {
-                Some(rs) => WordRangeIter::new(self.get_sorted_ranges(rs.ranges), self.dicts),
-                None => return None,
-            },
+            None => {
+                match self.get_range_set() {
+                    Some(rs) => WordRangeIter::new(self.get_sorted_ranges(rs.ranges), self.dicts),
+                    None => return None,
+                }
+            }
         };
         'main: loop {
             while let Some((range, word)) = iter.next() {
@@ -411,8 +437,8 @@ impl<'a> Author<'a> {
                 // TODO: Remember which characters not to try again.
                 // TODO: Save the current range set as a "try next" hint. (Is there a way to make
                 //       that work recursively ...?)
-                if Author::range_meets(&item.range, &bt_ranges)
-                        && (item.attempts < self.max_attempts || self.stack.is_empty()) {
+                if Author::range_meets(&item.range, &bt_ranges) &&
+                   (item.attempts < self.max_attempts || self.stack.is_empty()) {
                     bt_ranges.extend(item.bt_ranges);
                     iter = item.iter;
                     attempts = item.attempts;
@@ -437,15 +463,15 @@ mod tests {
 
     #[test]
     fn test_complete_cw_possible() {
-        let dicts = vec!(Dict::new(strs_to_cvecs(&["ABC", "EFG"])),
-            Dict::new(strs_to_cvecs(&["AEX", "BFX", "CGX"])));
+        let dicts = vec![Dict::new(strs_to_cvecs(&["ABC", "EFG"])),
+                         Dict::new(strs_to_cvecs(&["AEX", "BFX", "CGX"]))];
         let mut author = Author::new(&Crosswords::new(3, 3), &dicts);
         assert!(author.complete_cw().is_some());
     }
 
     #[test]
     fn test_complete_cw_impossible() {
-        let dicts = vec!(Dict::new(strs_to_cvecs(&["ABC", "ABCD"])));
+        let dicts = vec![Dict::new(strs_to_cvecs(&["ABC", "ABCD"]))];
         let mut author = Author::new(&Crosswords::new(3, 3), &dicts);
         assert!(author.complete_cw().is_none());
     }
@@ -458,9 +484,13 @@ mod tests {
         let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[0..(width + height - 1)].as_bytes();
         let horiz_words = letters.windows(width).map(String::from_utf8_lossy).map(str_to_cvec);
         let vert_words = letters.windows(height).map(String::from_utf8_lossy).map(str_to_cvec);
-        let dicts = vec!(Dict::new(horiz_words), Dict::new(vert_words));
-        bencher.bench_n(10, |b| b.iter(|| {
-            assert!(Author::new(&Crosswords::new(width, height), &dicts).complete_cw().is_some())
-        }));
+        let dicts = vec![Dict::new(horiz_words), Dict::new(vert_words)];
+        bencher.bench_n(10, |b| {
+            b.iter(|| {
+                assert!(Author::new(&Crosswords::new(width, height), &dicts)
+                    .complete_cw()
+                    .is_some())
+            })
+        });
     }
 }

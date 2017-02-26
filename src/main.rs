@@ -34,8 +34,11 @@ use std::path::Path;
 use std::usize;
 
 /// Write the crosswords grid to the file with the given name.
-fn write_html_to_file<P: AsRef<Path>>(filename: P, cw: &Crosswords, solution: bool,
-                                      hint_text: &HashMap<String, String>) -> Result<()> {
+fn write_html_to_file<P: AsRef<Path>>(filename: P,
+                                      cw: &Crosswords,
+                                      solution: bool,
+                                      hint_text: &HashMap<String, String>)
+                                      -> Result<()> {
     let file = try!(File::create(filename));
     let mut writer = BufWriter::new(file);
     html::write_html(&mut writer, cw, solution, hint_text)
@@ -52,33 +55,55 @@ fn evaluate(cw: &Crosswords, author: &Author) -> i32 {
     let empty_borders = (cw.max_border_count() - cw.count_borders()) as i32;
     let words = cw.get_words();
     let word_count = words.len() as i32;
-    let word_category_count = words.into_iter().fold(0,
-        |sum, word| sum + author.get_word_category(word).unwrap()) as i32;
+    let word_category_count =
+        words.into_iter().fold(0, |sum, word| sum + author.get_word_category(word).unwrap()) as i32;
     empty_borders + word_count - 2 * word_category_count
 }
 
 /// Print the crosswords grid and the word count.
 fn print_cw(cw: &Crosswords, author: &Author) {
     println!("{} / {} words are favorites. Score: {}",
-        cw.get_words().iter().filter(|w| author.get_word_category(&w) == Some(0)).count(),
-        cw.get_words().len(), evaluate(&cw, author));
+             cw.get_words().iter().filter(|w| author.get_word_category(&w) == Some(0)).count(),
+             cw.get_words().len(),
+             evaluate(&cw, author));
     println!("{}", cw);
 }
 
 /// Create the Options object containing the list of valid command line options.
 fn create_opts() -> Options {
     let mut opts = Options::new();
-    opts.optopt("s", "size", "size of the crosswords grid", "<Width>x<Height>");
-    opts.optopt("c", "min_crossing", "minimum number of words crossing any given word", "INTEGER");
-    opts.optopt("p", "min_crossing_percent",
-                "minimum percentage letters of any given word shared with another word", "FLOAT");
+    opts.optopt("s",
+                "size",
+                "size of the crosswords grid",
+                "<Width>x<Height>");
+    opts.optopt("c",
+                "min_crossing",
+                "minimum number of words crossing any given word",
+                "INTEGER");
+    opts.optopt("p",
+                "min_crossing_percent",
+                "minimum percentage letters of any given word shared with another word",
+                "FLOAT");
     opts.optmulti("d", "dict", "a dictionary file", "FILENAME");
     opts.optflag("h", "help", "print this help menu");
-    opts.optflag("v", "verbose", "print the current grid status during computation");
-    opts.optopt("m", "min_word_len", "don't use words shorter than that", "INTEGER");
-    opts.optopt("", "samples", "number of grids to create and select the best from", "INTEGER");
-    opts.optopt("", "wikipedia", "use hints from Wikipedia in the given language", "LANGUAGE");
-    opts.optopt("", "max_attempts", "the maximum number of words to try out in each position",
+    opts.optflag("v",
+                 "verbose",
+                 "print the current grid status during computation");
+    opts.optopt("m",
+                "min_word_len",
+                "don't use words shorter than that",
+                "INTEGER");
+    opts.optopt("",
+                "samples",
+                "number of grids to create and select the best from",
+                "INTEGER");
+    opts.optopt("",
+                "wikipedia",
+                "use hints from Wikipedia in the given language",
+                "LANGUAGE");
+    opts.optopt("",
+                "max_attempts",
+                "the maximum number of words to try out in each position",
                 "INTEGER");
     opts
 }
@@ -87,13 +112,16 @@ fn create_opts() -> Options {
 fn get_dicts<T: Iterator<Item = String>>(filenames: T, min_word_len: usize) -> Vec<Dict> {
     let mut existing_words = HashSet::new();
     filenames.map(|filename| {
-        let file = File::open(filename).unwrap();
-        let dict = Dict::new(BufReader::new(file).lines()
-                .filter_map(Result::ok).filter_map(Dict::normalize_word)
+            let file = File::open(filename).unwrap();
+            let dict = Dict::new(BufReader::new(file)
+                .lines()
+                .filter_map(Result::ok)
+                .filter_map(Dict::normalize_word)
                 .filter(|word| word.len() >= min_word_len && !existing_words.contains(word)));
-        existing_words.extend(dict.all_words().cloned());
-        dict
-    }).collect()
+            existing_words.extend(dict.all_words().cloned());
+            dict
+        })
+        .collect()
 }
 
 pub fn main() {
@@ -106,8 +134,11 @@ pub fn main() {
         return;
     }
     // TODO: Sanity checks for option values; proper error messages.
-    let size: Vec<usize> = matches.opt_str("s").map_or(vec!(15, 10), |s| s.split('x')
-        .map(|s| s.parse().unwrap()).collect());
+    let size: Vec<usize> = matches.opt_str("s").map_or(vec![15, 10], |s| {
+        s.split('x')
+            .map(|s| s.parse().unwrap())
+            .collect()
+    });
     let (width, height): (usize, usize) = (size[0], size[1]);
     let min_crossing = matches.opt_str("c").map_or(2, |s| s.parse().unwrap());
     let min_crossing_percent = matches.opt_str("p").map_or(30, |s| s.parse().unwrap());
@@ -115,10 +146,13 @@ pub fn main() {
     let max_attempts = matches.opt_str("max_attempts").map_or(usize::MAX, |s| s.parse().unwrap());
     let samples = matches.opt_str("samples").map_or(1, |s| s.parse().unwrap());
     let verbose = matches.opt_present("v");
-    let dicts = get_dicts(match matches.opt_count("d") {
-        0 => vec!("dict/favorites.txt".to_owned(), "dict/dict.txt".to_owned()),
-        _ => matches.opt_strs("d"),
-    }.into_iter(), min_word_len);
+    let dicts =
+        get_dicts(match matches.opt_count("d") {
+                          0 => vec!["dict/favorites.txt".to_owned(), "dict/dict.txt".to_owned()],
+                          _ => matches.opt_strs("d"),
+                      }
+                      .into_iter(),
+                  min_word_len);
     let mut author = Author::new(&Crosswords::new(width, height), &dicts)
         .with_min_crossing(min_crossing, min_crossing_percent)
         .with_verbosity(verbose)

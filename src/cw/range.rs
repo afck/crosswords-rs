@@ -14,7 +14,9 @@ pub struct Range {
 impl Range {
     /// Returns a (possibly empty) range containing all points satisfying the given predicate `f`,
     /// starting from `point` and proceeding in the given direction until the predicate is false.
-    pub fn cells_with<F>(point: Point, dir: Dir, mut f: F) -> Range where F: FnMut(Point) -> bool {
+    pub fn cells_with<F>(point: Point, dir: Dir, mut f: F) -> Range
+        where F: FnMut(Point) -> bool
+    {
         let dp = dir.point();
         let mut p = point;
         let mut len = 0;
@@ -22,7 +24,11 @@ impl Range {
             len += 1;
             p = p + dp;
         }
-        Range { point: point, dir: dir, len: len }
+        Range {
+            point: point,
+            dir: dir,
+            len: len,
+        }
     }
 
     /// Returns an iterator over the points in the range.
@@ -34,8 +40,16 @@ impl Range {
     /// Assumes (but does not check!) that the points are adjacent.
     pub fn with_points(point0: Point, point1: Point) -> Range {
         Range {
-            point: if point0.x < point1.x || point0.y < point1.y { point0 } else { point1 },
-            dir: if point0.x == point1.x { Dir::Down } else { Dir::Right },
+            point: if point0.x < point1.x || point0.y < point1.y {
+                point0
+            } else {
+                point1
+            },
+            dir: if point0.x == point1.x {
+                Dir::Down
+            } else {
+                Dir::Right
+            },
             len: 2,
         }
     }
@@ -43,12 +57,14 @@ impl Range {
     /// Returns `true` if the point belongs to the range.
     pub fn contains(&self, point: Point) -> bool {
         match self.dir {
-            Dir::Right => self.point.y == point.y
-                && self.point.x <= point.x
-                && point.x < self.point.x + self.len as i32,
-            Dir::Down => self.point.x == point.x
-                && self.point.y <= point.y
-                && point.y < self.point.y + self.len as i32,
+            Dir::Right => {
+                self.point.y == point.y && self.point.x <= point.x &&
+                point.x < self.point.x + self.len as i32
+            }
+            Dir::Down => {
+                self.point.x == point.x && self.point.y <= point.y &&
+                point.y < self.point.y + self.len as i32
+            }
         }
     }
 
@@ -75,11 +91,31 @@ mod tests {
 
     #[test]
     fn test_intersects() {
-        let v_range0 = Range { point: Point::new(1, 1), len: 3, dir: Dir::Right };
-        let v_range1 = Range { point: Point::new(1, 2), len: 3, dir: Dir::Right };
-        let h_range0 = Range { point: Point::new(0, 0), len: 5, dir: Dir::Down };
-        let h_range1 = Range { point: Point::new(1, 0), len: 2, dir: Dir::Down };
-        let h_range2 = Range { point: Point::new(2, 2), len: 3, dir: Dir::Down };
+        let v_range0 = Range {
+            point: Point::new(1, 1),
+            len: 3,
+            dir: Dir::Right,
+        };
+        let v_range1 = Range {
+            point: Point::new(1, 2),
+            len: 3,
+            dir: Dir::Right,
+        };
+        let h_range0 = Range {
+            point: Point::new(0, 0),
+            len: 5,
+            dir: Dir::Down,
+        };
+        let h_range1 = Range {
+            point: Point::new(1, 0),
+            len: 2,
+            dir: Dir::Down,
+        };
+        let h_range2 = Range {
+            point: Point::new(2, 2),
+            len: 3,
+            dir: Dir::Down,
+        };
         assert_eq!(false, v_range0.intersects(&v_range1));
         assert_eq!(false, v_range0.intersects(&h_range0));
         assert_eq!(true, v_range0.intersects(&h_range1));
@@ -91,12 +127,36 @@ mod tests {
 
     #[test]
     fn test_is_adjacent_to() {
-        let v_range0 = Range { point: Point::new(3, 1), len: 3, dir: Dir::Right };
-        let v_range1 = Range { point: Point::new(1, 1), len: 2, dir: Dir::Right };
-        let v_range2 = Range { point: Point::new(1, 2), len: 2, dir: Dir::Right };
-        let v_range3 = Range { point: Point::new(0, 1), len: 2, dir: Dir::Right };
-        let v_range4 = Range { point: Point::new(2, 1), len: 2, dir: Dir::Right };
-        let h_range0 = Range { point: Point::new(3, 0), len: 2, dir: Dir::Down };
+        let v_range0 = Range {
+            point: Point::new(3, 1),
+            len: 3,
+            dir: Dir::Right,
+        };
+        let v_range1 = Range {
+            point: Point::new(1, 1),
+            len: 2,
+            dir: Dir::Right,
+        };
+        let v_range2 = Range {
+            point: Point::new(1, 2),
+            len: 2,
+            dir: Dir::Right,
+        };
+        let v_range3 = Range {
+            point: Point::new(0, 1),
+            len: 2,
+            dir: Dir::Right,
+        };
+        let v_range4 = Range {
+            point: Point::new(2, 1),
+            len: 2,
+            dir: Dir::Right,
+        };
+        let h_range0 = Range {
+            point: Point::new(3, 0),
+            len: 2,
+            dir: Dir::Down,
+        };
         assert_eq!(true, v_range0.is_adjacent_to(&v_range1));
         assert_eq!(true, v_range1.is_adjacent_to(&v_range0));
         assert_eq!(false, v_range0.is_adjacent_to(&v_range2));
@@ -106,4 +166,3 @@ mod tests {
         assert_eq!(false, v_range0.is_adjacent_to(&h_range0));
     }
 }
-

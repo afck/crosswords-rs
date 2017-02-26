@@ -20,7 +20,9 @@ impl<'a> RangesIter<'a> {
     }
 
     fn advance(&mut self, len: usize) {
-        if self.ended { return; }
+        if self.ended {
+            return;
+        }
         match self.dir {
             Dir::Right => {
                 self.point.x += len as i32;
@@ -32,7 +34,7 @@ impl<'a> RangesIter<'a> {
                         self.dir = Dir::Down;
                     }
                 }
-            },
+            }
             Dir::Down => {
                 self.point.y += len as i32;
                 if self.point.y >= self.cw.height as i32 {
@@ -61,4 +63,3 @@ impl<'a> Iterator for RangesIter<'a> {
         None
     }
 }
-

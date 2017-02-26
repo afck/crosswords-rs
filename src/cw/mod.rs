@@ -94,13 +94,17 @@ impl Crosswords {
     #[inline]
     pub fn get_border(&self, point: Point, dir: Dir) -> bool {
         match dir {
-            Dir::Right => match point.coord(self.width - 1, self.height) {
-                None => true,
-                Some(p) => self.right_border[p],
-            },
-            Dir::Down => match point.coord(self.width, self.height - 1) {
-                None => true,
-                Some(p) => self.down_border[p],
+            Dir::Right => {
+                match point.coord(self.width - 1, self.height) {
+                    None => true,
+                    Some(p) => self.right_border[p],
+                }
+            }
+            Dir::Down => {
+                match point.coord(self.width, self.height - 1) {
+                    None => true,
+                    Some(p) => self.down_border[p],
+                }
             }
         }
     }
@@ -115,20 +119,24 @@ impl Crosswords {
     #[inline]
     fn set_border(&mut self, point: Point, dir: Dir, value: bool) -> bool {
         match dir {
-            Dir::Right => match point.coord(self.width - 1, self.height) {
-                None => if value { true } else { unreachable!() },
-                Some(p) => {
-                    let existing = self.right_border[p];
-                    self.right_border[p] = value;
-                    existing
-                },
-            },
-            Dir::Down => match point.coord(self.width, self.height - 1) {
-                None => if value { true} else { unreachable!() },
-                Some(p) => {
-                    let existing = self.down_border[p];
-                    self.down_border[p] = value;
-                    existing
+            Dir::Right => {
+                match point.coord(self.width - 1, self.height) {
+                    None => if value { true } else { unreachable!() },
+                    Some(p) => {
+                        let existing = self.right_border[p];
+                        self.right_border[p] = value;
+                        existing
+                    }
+                }
+            }
+            Dir::Down => {
+                match point.coord(self.width, self.height - 1) {
+                    None => if value { true } else { unreachable!() },
+                    Some(p) => {
+                        let existing = self.down_border[p];
+                        self.down_border[p] = value;
+                        existing
+                    }
                 }
             }
         }
@@ -185,10 +193,9 @@ impl Crosswords {
     pub fn is_word_allowed(&self, point: Point, dir: Dir, word: &[char]) -> bool {
         let dp = dir.point();
         let len = word.len() as i32;
-        !self.words.contains(word) && len > 1
-            && self.get_border(point - dp, dir)
-            && self.get_border(point + dp * (len - 1), dir)
-            && Self::word_iter(word, point, dir).all(|(&c, p)| self.is_char_allowed(p, c))
+        !self.words.contains(word) && len > 1 && self.get_border(point - dp, dir) &&
+        self.get_border(point + dp * (len - 1), dir) &&
+        Self::word_iter(word, point, dir).all(|(&c, p)| self.is_char_allowed(p, c))
     }
 
     fn push_word(&mut self, point: Point, dir: Dir, word: &[char]) {
@@ -238,9 +245,9 @@ impl Crosswords {
     /// Returns `false` if any cell of the range belongs to a word in the range's direction.
     pub fn is_range_free(&self, range: Range) -> bool {
         let dp = range.dir.point();
-        self.contains(range.point) && self.contains(range.point + dp * (range.len - 1))
-            && self.get_border(range.point - dp, range.dir)
-            && range.points().all(|p| self.get_border(p, range.dir))
+        self.contains(range.point) && self.contains(range.point + dp * (range.len - 1)) &&
+        self.get_border(range.point - dp, range.dir) &&
+        range.points().all(|p| self.get_border(p, range.dir))
     }
 
     /// Returns the largest free range containing the point.
@@ -255,11 +262,15 @@ impl Crosswords {
     /// Returns the largest free range starting at that point.
     pub fn get_free_range_at(&self, point: Point, dir: Dir) -> Range {
         let dp = dir.point();
-        if !self.contains(point - dp)
-                || (self.get_border(point - dp, dir) && !self.get_border(point - dp * 2, dir)) {
+        if !self.contains(point - dp) ||
+           (self.get_border(point - dp, dir) && !self.get_border(point - dp * 2, dir)) {
             Range::cells_with(point, dir, |p| self.contains(p) && self.get_border(p, dir))
         } else {
-            Range { point: point, dir: dir, len: 0 }
+            Range {
+                point: point,
+                dir: dir,
+                len: 0,
+            }
         }
     }
 
@@ -305,10 +316,10 @@ impl Crosswords {
     }
 
     fn is_boundary_point(&self, point: Point) -> bool {
-        self.get_char(point) == Some(BLOCK) && (self.is_letter(point + Point::new(1, 0))
-            || self.is_letter(point + Point::new(-1, 0))
-            || self.is_letter(point + Point::new(0, 1))
-            || self.is_letter(point + Point::new(0, -1)))
+        self.get_char(point) == Some(BLOCK) &&
+        (self.is_letter(point + Point::new(1, 0)) || self.is_letter(point + Point::new(-1, 0)) ||
+         self.is_letter(point + Point::new(0, 1)) ||
+         self.is_letter(point + Point::new(0, -1)))
     }
 
     /// Returns the smallest set of pairs of points that defines the boundary of a cluster of empty
@@ -408,15 +419,18 @@ impl Display for Crosswords {
         }
         for item in self.print_items() {
             try!(formatter.write_str(&match item {
-                PrintItem::Cross(true) => '\u{00B7}',
-                PrintItem::VertBorder(true) => '|',
-                PrintItem::HorizBorder(true) => '\u{2014}',
-                PrintItem::Cross(false) | PrintItem::VertBorder(false)
-                    | PrintItem::HorizBorder(false) => ' ',
-                PrintItem::Block => '\u{2588}',
-                PrintItem::CharHint(c, _) => c,
-                PrintItem::LineBreak => '\n',
-            }.to_string()[..]))
+                    PrintItem::Cross(true) => '\u{00B7}',
+                    PrintItem::VertBorder(true) => '|',
+                    PrintItem::HorizBorder(true) => '\u{2014}',
+                    PrintItem::Cross(false) |
+                    PrintItem::VertBorder(false) |
+                    PrintItem::HorizBorder(false) => ' ',
+                    PrintItem::Block => '\u{2588}',
+                    PrintItem::CharHint(c, _) => c,
+                    PrintItem::LineBreak => '\n',
+                }
+                .to_string()
+                                          [..]))
         }
         Ok(())
     }
@@ -435,11 +449,13 @@ mod tests {
         let p30 = Point::new(3, 0);
         // Words are too long:
         assert_eq!(false, cw.try_word(p00, Dir::Down, &str_to_cvec("FOO")));
-        assert_eq!(false, cw.try_word(p00, Dir::Right, &str_to_cvec("FOOBARBAZ")));
+        assert_eq!(false,
+                   cw.try_word(p00, Dir::Right, &str_to_cvec("FOOBARBAZ")));
         // BAR fits horizontally, but cannot be duplicated.
         assert_eq!(true, cw.try_word(p00, Dir::Right, &str_to_cvec("BAR")));
         assert_eq!(false, cw.try_word(p01, Dir::Right, &str_to_cvec("BAR")));
-        assert_eq!("BAR".to_string(), cw.chars_at(p00, Dir::Right).collect::<String>());
+        assert_eq!("BAR".to_string(),
+                   cw.chars_at(p00, Dir::Right).collect::<String>());
         assert_eq!(true, cw.try_word(p30, Dir::Right, &str_to_cvec("BAZ")));
         // BARBAZ is also a word. Combine BAR and BAZ, so that they are free again:
         assert_eq!(true, cw.try_word(p00, Dir::Right, &str_to_cvec("BARBAZ")));

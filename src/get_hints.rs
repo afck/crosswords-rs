@@ -21,7 +21,8 @@ fn replace_all<'a>(text: String, replacements: Vec<(&'a str, &'a str)>) -> Strin
 }
 
 fn get_hint_from_article(article: String, word: &str, lang: &str) -> String {
-    let clean_article = replace_all(article, vec!(
+    let clean_article = replace_all(article,
+                                    vec!(
         // Remove quotations.
         (r#"<ref>.*</ref>"#, ""),
         // Remove monospace.
@@ -38,7 +39,9 @@ fn get_hint_from_article(article: String, word: &str, lang: &str) -> String {
         // Replace links with their link text.
         (r#"\[\[([^\]]*\|)?(?P<link>[^\|\]]*)\]\]"#, "$link"),
         // Display bold text as plain text.
-        (r#"'''(?P<bold>[^']*)'''"#, "$bold"))).trim().to_owned();
+        (r#"'''(?P<bold>[^']*)'''"#, "$bold")))
+        .trim()
+        .to_owned();
     let descr_init = match lang {
         "de" => " ist | bezeichnet | war | sind | waren ",
         "en" => " is | are | was | were ",
@@ -51,27 +54,30 @@ fn get_hint_from_article(article: String, word: &str, lang: &str) -> String {
             word_re))
         .unwrap();
     // Sentences starting with "<word> is ...":
-    let ex_re0 = Regex::new(
-            &format!(r#"({}(\([^\)]*\))?({})(?P<excerpt>[^\."\n]*)(\.|"|\n))"#,
-                     word_re, descr_init))
+    let ex_re0 = Regex::new(&format!(r#"({}(\([^\)]*\))?({})(?P<excerpt>[^\."\n]*)(\.|"|\n))"#,
+                                     word_re,
+                                     descr_init))
         .unwrap();
     // Any sentence containing the word.
-    let ex_re2 = Regex::new(
-        &format!(r#"(\n|\*|\. )\s*(?P<excerpt>[^\.\n]*{}[^\.\n\*]*(\.|\n))"#, word_re)).unwrap();
+    let ex_re2 = Regex::new(&format!(r#"(\n|\*|\. )\s*(?P<excerpt>[^\.\n]*{}[^\.\n\*]*(\.|\n))"#,
+                                     word_re))
+        .unwrap();
     // If all else fails, any sentence.
     let ex_re3 = Regex::new(r#"(\n|\. )\s*(?P<excerpt>[^\.\n]+(\.|\n))"#).unwrap();
     let excerpt = match ex_re0.captures(&clean_article.clone())
-            .or(ex_re1.captures(&clean_article.clone()))
-            .or(ex_re2.captures(&clean_article.clone()))
-            .or(ex_re3.captures(&clean_article.clone())) {
+        .or(ex_re1.captures(&clean_article.clone()))
+        .or(ex_re2.captures(&clean_article.clone()))
+        .or(ex_re3.captures(&clean_article.clone())) {
         Some(captures) => captures.name("excerpt").unwrap().as_str().to_owned(),
         None => clean_article,
     };
-    replace_all(excerpt, vec!(
-        // Replace the word from the crosswords with ellipses.
-        (&format!(r#"(?i){}"#, &word), "..."),
-        // Replace any sequence of whitespace with a single space.
-        (r#"\s+"#, " "))).trim().to_owned()
+    replace_all(excerpt,
+                vec![// Replace the word from the crosswords with ellipses.
+                     (&format!(r#"(?i){}"#, &word), "..."),
+                     // Replace any sequence of whitespace with a single space.
+                     (r#"\s+"#, " ")])
+        .trim()
+        .to_owned()
 }
 
 fn download_from(url: String) -> String {
@@ -86,14 +92,18 @@ fn download_article(word: &str, lang: &str) -> String {
     let mut cased_word = String::new();
     cased_word.extend(word[..1].chars());
     cased_word.extend(word[1..].to_ascii_lowercase().chars());
-    let url = format!("http://{}.wikipedia.org/w/index.php?title={}&action=raw", lang, cased_word);
+    let url = format!("http://{}.wikipedia.org/w/index.php?title={}&action=raw",
+                      lang,
+                      cased_word);
     let body = download_from(url);
     // TODO: Check whether the redirection is just because of capitalization. Otherwise ... ??
     if let Some(captures) =
         Regex::new(r#"^#((?i)REDIRECT|WEITERLEITUNG)\s*\[\[(?P<redir>[^\]]*)\]\]"#)
-            .unwrap().captures(&body) {
+            .unwrap()
+            .captures(&body) {
         let url = format!("http://{}.wikipedia.org/w/index.php?title={}&action=raw",
-                          lang, captures.name("redir").unwrap().as_str().replace(" ", "_"));
+                          lang,
+                          captures.name("redir").unwrap().as_str().replace(" ", "_"));
         return download_from(url);
     }
     body
@@ -112,9 +122,10 @@ fn get_hint(word: &str, lang: &str) -> String {
 
 pub fn get_hints<T: Iterator<Item = String>>(words: T, lang: String) -> HashMap<String, String> {
     words.map(|word| {
-        let hint = get_hint(&word, &lang);
-        (word, hint)
-    }).collect()
+            let hint = get_hint(&word, &lang);
+            (word, hint)
+        })
+        .collect()
 }
 
 #[test]
@@ -131,10 +142,12 @@ fn test_get_hint_from_article() {
         r#"'''Servo''' ist eine [[Layout-Engine]], welche von [[Mozilla]] und '''Samsung''' "#,
         r#"entwickelt wird.<ref>[http://arstechnica.com] (englisch) – Artikel vom "#,
         r#"{{Datum|3|4|2013}} <small></ref> Der Prototyp zielt darauf ab, eine hochparallele "#,
-        r#"Umgebung zu erschaffen."#).to_owned();
+        r#"Umgebung zu erschaffen."#)
+        .to_owned();
     let description = r#"eine Layout-Engine, welche von Mozilla und Samsung entwickelt wird"#
         .to_owned();
     assert_eq!(description, get_hint_from_article(article, "Servo", "de"));
     let convert = r#"distance of {{convert|2,900|km|mi}}"#.to_owned();
-    assert_eq!(r#"distance of 2,900 km"#.to_owned(), get_hint_from_article(convert, "Foo", "en"));
+    assert_eq!(r#"distance of 2,900 km"#.to_owned(),
+               get_hint_from_article(convert, "Foo", "en"));
 }

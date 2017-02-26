@@ -20,14 +20,13 @@ pub enum WordConstraint {
     NGramAt(Vec<char>, usize, usize),
 }
 
-type NgramIter<'a> = iter::Map<
-    iter::Zip<slice::Windows<'a, char>, iter::Enumerate<iter::Repeat<usize>>>,
-    fn((&[char], (usize, usize))) -> WordConstraint>;
+type NgramIter<'a> = iter::Map<iter::Zip<slice::Windows<'a, char>,
+                                         iter::Enumerate<iter::Repeat<usize>>>,
+                               fn((&[char], (usize, usize))) -> WordConstraint>;
 
-type AllNgramIter<'a> = iter::FlatMap<
-    iter::Zip<iter::Repeat<&'a [char]>, ops::Range<usize>>,
-    NgramIter<'a>,
-    fn((&'a [char], usize)) -> NgramIter<'a>>;
+type AllNgramIter<'a> = iter::FlatMap<iter::Zip<iter::Repeat<&'a [char]>, ops::Range<usize>>,
+                                      NgramIter<'a>,
+                                      fn((&'a [char], usize)) -> NgramIter<'a>>;
 
 /// An iterator over all constraints applying to a given word.
 pub type AllConstraintsIter<'a> = iter::Chain<AllNgramIter<'a>, option::IntoIter<WordConstraint>>;
@@ -65,4 +64,3 @@ impl WordConstraint {
             .chain(Some(WordConstraint::Length(word.len())))
     }
 }
-

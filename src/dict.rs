@@ -9,8 +9,8 @@ use std::iter;
 use word_constraint::WordConstraint;
 
 fn matches(word: &[char], pattern: &[char]) -> bool {
-    word.len() <= pattern.len()
-        && word.iter().zip(pattern.iter()).all(|(&cw, &cp)| cw == cp || cp == BLOCK)
+    word.len() <= pattern.len() &&
+    word.iter().zip(pattern.iter()).all(|(&cw, &cp)| cw == cp || cp == BLOCK)
 }
 
 /// An iterator over all words satisfying a given `WordConstraint`.
@@ -52,7 +52,10 @@ pub struct Dict {
 
 impl Dict {
     /// Create a new `Dict` from the given sequence of words.
-    pub fn new<T, U>(all_words: T) -> Dict where T: IntoIterator<Item = U>, U: Into<Vec<char>> {
+    pub fn new<T, U>(all_words: T) -> Dict
+        where T: IntoIterator<Item = U>,
+              U: Into<Vec<char>>
+    {
         let mut dict = Dict {
             words: all_words.into_iter().map(|w| w.into()).unique().collect(),
             lists: HashMap::new(),
@@ -62,9 +65,9 @@ impl Dict {
         let mut rng = rand::thread_rng(); // TODO: Make this a parameter
         rng.shuffle(&mut dict.words[..]);
         for (i, word) in dict.words.iter().enumerate() {
-            for woco in WordConstraint::all(word, dict.max_n){
+            for woco in WordConstraint::all(word, dict.max_n) {
                 if !dict.lists.get(&woco).is_some() {
-                    dict.lists.insert(woco.clone(), vec!(i));
+                    dict.lists.insert(woco.clone(), vec![i]);
                 } else {
                     dict.lists.get_mut(&woco).unwrap().push(i);
                 }
@@ -75,9 +78,9 @@ impl Dict {
 
     fn replace_special(string_word: &str) -> String {
         string_word.replace("Ä", "AE")
-                   .replace("Ö", "OE")
-                   .replace("Ü", "UE")
-                   .replace("ß", "SS")
+            .replace("Ö", "OE")
+            .replace("Ü", "UE")
+            .replace("ß", "SS")
     }
 
     /// Convert the `String` to a char vector, replacing umlauts with corresponding diphthongs.
@@ -112,10 +115,11 @@ impl Dict {
             return list;
         }
         let mut pos = 0;
-        for i in pattern.iter().enumerate()
-                .filter(|&(_, ch)| ch == &BLOCK)
-                .map(|(i, _)| i)
-                .chain(iter::once(len)) {
+        for i in pattern.iter()
+            .enumerate()
+            .filter(|&(_, ch)| ch == &BLOCK)
+            .map(|(i, _)| i)
+            .chain(iter::once(len)) {
             if i > pos {
                 let subword = &pattern[pos..i];
                 let n = cmp::min(self.max_n, subword.len());
@@ -165,10 +169,11 @@ mod tests {
 
     #[test]
     fn test_normalize_word() {
-        let words= vec!("Öha", "Düsenjäger", "H4X0R", "Wow!", "Fuß").into_iter()
-            .filter_map(Dict::normalize_word).collect_vec();
+        let words = vec!["Öha", "Düsenjäger", "H4X0R", "Wow!", "Fuß"]
+            .into_iter()
+            .filter_map(Dict::normalize_word)
+            .collect_vec();
         let expected = strs_to_cvecs(&["OEHA", "DUESENJAEGER", "FUSS"]);
         assert_eq!(expected, words);
     }
 }
-

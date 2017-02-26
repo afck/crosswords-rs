@@ -10,16 +10,16 @@ fn turn(point: Point) -> Point {
 /// An iterator of all pairs of empty and filled cells at the boundary of the given cluster.
 /// It can be given an additional range that it will consider filled with letters.
 pub struct BoundaryIter<'a> {
-   last: (Point, Point),
-   prev: Option<(Point, Point)>,
-   filled_range: Option<Range>,
-   cw: &'a Crosswords,
+    last: (Point, Point),
+    prev: Option<(Point, Point)>,
+    filled_range: Option<Range>,
+    cw: &'a Crosswords,
 }
 
 impl<'a> BoundaryIter<'a> {
     pub fn new(point: Point, filled_range: Option<Range>, cw: &'a Crosswords) -> BoundaryIter<'a> {
-        (cw.get_char(point) == Some(BLOCK) && filled_range.iter().all(|r| !r.contains(point)))
-            || panic!("BoundaryIter must start with an empty cell.");
+        (cw.get_char(point) == Some(BLOCK) && filled_range.iter().all(|r| !r.contains(point))) ||
+        panic!("BoundaryIter must start with an empty cell.");
         let dp = Dir::Right.point();
         let mut p1 = point;
         while cw.get_char(p1) == Some(BLOCK) && filled_range.iter().all(|r| !r.contains(p1)) {
@@ -35,8 +35,8 @@ impl<'a> BoundaryIter<'a> {
 
     #[inline]
     fn is_free(&self, point: Point) -> bool {
-        self.cw.get_char(point) == Some(BLOCK)
-            && self.filled_range.iter().all(|r| !r.contains(point))
+        self.cw.get_char(point) == Some(BLOCK) &&
+        self.filled_range.iter().all(|r| !r.contains(point))
     }
 
     fn advance(&mut self) -> bool {
@@ -55,7 +55,7 @@ impl<'a> BoundaryIter<'a> {
     }
 }
 
-impl <'a> Iterator for BoundaryIter<'a> {
+impl<'a> Iterator for BoundaryIter<'a> {
     type Item = (Point, Point);
 
     fn next(&mut self) -> Option<(Point, Point)> {
@@ -89,7 +89,11 @@ mod tests {
         let mut cw = Crosswords::new(5, 3);
         cw.try_word(Point::new(0, 2), Dir::Right, &str_to_cvec("AB"));
         cw.try_word(Point::new(4, 0), Dir::Down, &str_to_cvec("AC"));
-        let range = Range { point: Point::new(2, 1), dir: Dir::Right, len: 2 };
+        let range = Range {
+            point: Point::new(2, 1),
+            dir: Dir::Right,
+            len: 2,
+        };
         let mut iter = cw.get_boundary_iter_for(Point::new(0, 0), Some(range));
         assert_eq!(range_d(3, 0), iter.next());
         assert_eq!(range_d(2, 0), iter.next());

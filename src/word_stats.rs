@@ -90,10 +90,11 @@ impl WordStats {
         }
         let mut probability = 1.;
         let mut pos = 0;
-        for i in pattern.iter().enumerate()
-                .filter(|&(_, ch)| ch == &BLOCK)
-                .map(|(i, _)| i)
-                .chain(iter::once(len)) {
+        for i in pattern.iter()
+            .enumerate()
+            .filter(|&(_, ch)| ch == &BLOCK)
+            .map(|(i, _)| i)
+            .chain(iter::once(len)) {
             if i > pos {
                 probability *= self.get_estimate(&pattern[pos..i], pos, len) / total;
                 if probability == 0. {
