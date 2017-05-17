@@ -37,8 +37,8 @@ fn get_border_class(border: bool) -> &'static str {
     if border { "dark" } else { "light" }
 }
 
-fn string_for(item: PrintItem, solution: bool) -> String {
-    match item {
+fn string_for(item: &PrintItem, solution: bool) -> String {
+    match *item {
         PrintItem::HorizBorder(b) |
         PrintItem::Cross(b) => format!(r#"<div class="low {}"></div>"#, get_border_class(b)),
         PrintItem::VertBorder(b) => format!(r#"<div class="high {}"></div>"#, get_border_class(b)),
@@ -48,7 +48,8 @@ fn string_for(item: PrintItem, solution: bool) -> String {
                             r#"<span class="hint">{}</span>"#,
                             r#"<span class="solution">{}</span>"#,
                             r#"</div>"#),
-                    hint.map(|h| h.to_string()).unwrap_or("".to_owned()),
+                    hint.map(|h| h.to_string())
+                        .unwrap_or_else(|| "".to_owned()),
                     if solution {
                         c.to_string()
                     } else {
@@ -65,7 +66,7 @@ fn write_grid<T: Write, I: Iterator<Item = PrintItem>>(writer: &mut T,
                                                        -> Result<()> {
     try!(writeln!(writer, r#"<div class="row">"#));
     for item in items {
-        try!(writer.write_all(&string_for(item, solution).as_bytes()))
+        try!(writer.write_all(string_for(&item, solution).as_bytes()))
     }
     try!(writeln!(writer, "</div>"));
     Ok(())
@@ -91,7 +92,10 @@ fn write_hints<T: Write>(writer: &mut T,
             }
             if cw.has_hint_at_dir(p, dir) {
                 let word: String = cw.chars_at(p, dir).collect();
-                let hint = hint_text.get(&word).cloned().unwrap_or_else(|| format!("[{}]", word));
+                let hint = hint_text
+                    .get(&word)
+                    .cloned()
+                    .unwrap_or_else(|| format!("[{}]", word));
                 try!(write!(writer, "<b>{}.</b> {} &nbsp;", hint_count, hint));
             }
         }
@@ -117,8 +121,8 @@ pub fn write_html<T: Write>(writer: &mut T,
                   cw.get_width() * 32 + 2));
     try!(write_grid(writer, cw.print_items(), solution));
     try!(writeln!(writer, r#"</div><br><div style="clear: both"></div>"#));
-    try!(write_hints(writer, &cw, Dir::Right, hint_text));
-    try!(write_hints(writer, &cw, Dir::Down, hint_text));
+    try!(write_hints(writer, cw, Dir::Right, hint_text));
+    try!(write_hints(writer, cw, Dir::Down, hint_text));
     try!(writeln!(writer, "<br></body>"));
     Ok(())
 }

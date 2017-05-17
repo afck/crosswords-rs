@@ -13,7 +13,10 @@ use hyper::Client;
 fn replace_all<'a>(text: String, replacements: Vec<(&'a str, &'a str)>) -> String {
     let mut new_text = text;
     for (re, repl) in replacements {
-        let temp_text = Regex::new(re).unwrap().replace_all(&new_text, repl).to_string();
+        let temp_text = Regex::new(re)
+            .unwrap()
+            .replace_all(&new_text, repl)
+            .to_string();
         new_text = temp_text;
     }
     new_text
@@ -39,8 +42,8 @@ fn get_hint_from_article(article: String, word: &str, lang: &str) -> String {
         (r#"\[\[([^\]]*\|)?(?P<link>[^\|\]]*)\]\]"#, "$link"),
         // Display bold text as plain text.
         (r#"'''(?P<bold>[^']*)'''"#, "$bold")))
-        .trim()
-        .to_owned();
+            .trim()
+            .to_owned();
     let descr_init = match lang {
         "de" => " ist | bezeichnet | war | sind | waren ",
         "en" => " is | are | was | were ",
@@ -51,37 +54,38 @@ fn get_hint_from_article(article: String, word: &str, lang: &str) -> String {
     let ex_re1 = Regex::new(&format!(
             r#"{}\S* (or [^\.\n]* )?may refer to:\n(\s*((=|;).*|.*:)?\n)*\*(?P<excerpt>.*)\n"#,
             word_re))
-        .unwrap();
+            .unwrap();
     // Sentences starting with "<word> is ...":
     let ex_re0 = Regex::new(&format!(r#"({}(\([^\)]*\))?({})(?P<excerpt>[^\."\n]*)(\.|"|\n))"#,
                                      word_re,
                                      descr_init))
-        .unwrap();
+            .unwrap();
     // Any sentence containing the word.
     let ex_re2 = Regex::new(&format!(r#"(\n|\*|\. )\s*(?P<excerpt>[^\.\n]*{}[^\.\n\*]*(\.|\n))"#,
                                      word_re))
-        .unwrap();
+            .unwrap();
     // If all else fails, any sentence.
     let ex_re3 = Regex::new(r#"(\n|\. )\s*(?P<excerpt>[^\.\n]+(\.|\n))"#).unwrap();
-    let excerpt = match ex_re0.captures(&clean_article.clone())
-        .or(ex_re1.captures(&clean_article.clone()))
-        .or(ex_re2.captures(&clean_article.clone()))
-        .or(ex_re3.captures(&clean_article.clone())) {
+    let excerpt = match ex_re0
+              .captures(&clean_article)
+              .or_else(|| ex_re1.captures(&clean_article))
+              .or_else(|| ex_re2.captures(&clean_article))
+              .or_else(|| ex_re3.captures(&clean_article)) {
         Some(captures) => captures.name("excerpt").unwrap().as_str().to_owned(),
-        None => clean_article,
+        None => clean_article.clone(),
     };
     replace_all(excerpt,
                 vec![// Replace the word from the crosswords with ellipses.
                      (&format!(r#"(?i){}"#, &word), "..."),
                      // Replace any sequence of whitespace with a single space.
                      (r#"\s+"#, " ")])
-        .trim()
-        .to_owned()
+            .trim()
+            .to_owned()
 }
 
-fn download_from(url: String) -> String {
+fn download_from(url: &str) -> String {
     let client = Client::new();
-    let mut res = client.get(&url[..]).send().unwrap();
+    let mut res = client.get(url).send().unwrap();
     let mut body = String::new();
     res.read_to_string(&mut body).unwrap();
     body
@@ -92,7 +96,7 @@ fn download_article(word: &str, lang: &str) -> String {
     let url = format!("http://{}.wikipedia.org/w/index.php?title={}&action=raw",
                       lang,
                       cased_word);
-    let body = download_from(url);
+    let body = download_from(&url);
     // TODO: Check whether the redirection is just because of capitalization. Otherwise ... ??
     if let Some(captures) =
         Regex::new(r#"^#((?i)REDIRECT|WEITERLEITUNG)\s*\[\[(?P<redir>[^\]]*)\]\]"#)
@@ -100,8 +104,12 @@ fn download_article(word: &str, lang: &str) -> String {
             .captures(&body) {
         let url = format!("http://{}.wikipedia.org/w/index.php?title={}&action=raw",
                           lang,
-                          captures.name("redir").unwrap().as_str().replace(" ", "_"));
-        return download_from(url);
+                          captures
+                              .name("redir")
+                              .unwrap()
+                              .as_str()
+                              .replace(" ", "_"));
+        return download_from(&url);
     }
     body
 }
@@ -117,11 +125,12 @@ fn get_hint(word: &str, lang: &str) -> String {
     get_hint_from_article(article, word, lang)
 }
 
-pub fn get_hints<T: Iterator<Item = String>>(words: T, lang: String) -> HashMap<String, String> {
-    words.map(|word| {
-            let hint = get_hint(&word, &lang);
-            (word, hint)
-        })
+pub fn get_hints<T: Iterator<Item = String>>(words: T, lang: &str) -> HashMap<String, String> {
+    words
+        .map(|word| {
+                 let hint = get_hint(&word, lang);
+                 (word, hint)
+             })
         .collect()
 }
 
@@ -140,7 +149,7 @@ fn test_get_hint_from_article() {
         r#"entwickelt wird.<ref>[http://arstechnica.com] (englisch) – Artikel vom "#,
         r#"{{Datum|3|4|2013}} <small></ref> Der Prototyp zielt darauf ab, eine hochparallele "#,
         r#"Umgebung zu erschaffen."#)
-        .to_owned();
+            .to_owned();
     let description = r#"eine Layout-Engine, welche von Mozilla und Samsung entwickelt wird"#
         .to_owned();
     assert_eq!(description, get_hint_from_article(article, "Servo", "de"));

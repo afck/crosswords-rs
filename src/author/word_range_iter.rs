@@ -39,7 +39,9 @@ impl<'a> WordRangeIter<'a> {
             }
         }
         if let Some(&(_, ref pattern)) = self.ranges.get(self.range_i) {
-            self.pi = self.dicts.get(self.dict_i).map(|dict| dict.matching_words(pattern));
+            self.pi = self.dicts
+                .get(self.dict_i)
+                .map(|dict| dict.matching_words(pattern));
             self.pi.is_some()
         } else {
             false
@@ -56,9 +58,9 @@ impl<'a> Iterator for WordRangeIter<'a> {
             oword = self.get_word();
         }
         oword.map(|word| {
-            let (range, _) = self.ranges[self.range_i];
-            (range, word)
-        })
+                      let (range, _) = self.ranges[self.range_i];
+                      (range, word)
+                  })
     }
 }
 

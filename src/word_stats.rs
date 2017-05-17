@@ -90,11 +90,12 @@ impl WordStats {
         }
         let mut probability = 1.;
         let mut pos = 0;
-        for i in pattern.iter()
-            .enumerate()
-            .filter(|&(_, ch)| ch == &BLOCK)
-            .map(|(i, _)| i)
-            .chain(iter::once(len)) {
+        for i in pattern
+                .iter()
+                .enumerate()
+                .filter(|&(_, ch)| ch == &BLOCK)
+                .map(|(i, _)| i)
+                .chain(iter::once(len)) {
             if i > pos {
                 probability *= self.get_estimate(&pattern[pos..i], pos, len) / total;
                 if probability == 0. {
@@ -113,6 +114,8 @@ mod tests {
     use std::collections::HashSet;
     use test_util::str_to_cvec;
 
+    // Results in this test are exact.
+    #[cfg_attr(feature="cargo-clippy", allow(float_cmp))]
     #[test]
     fn test() {
         let mut words: HashSet<Vec<char>> = HashSet::new();

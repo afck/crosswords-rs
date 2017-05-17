@@ -10,7 +10,9 @@ use word_constraint::WordConstraint;
 
 fn matches(word: &[char], pattern: &[char]) -> bool {
     word.len() <= pattern.len() &&
-    word.iter().zip(pattern.iter()).all(|(&cw, &cp)| cw == cp || cp == BLOCK)
+    word.iter()
+        .zip(pattern.iter())
+        .all(|(&cw, &cp)| cw == cp || cp == BLOCK)
 }
 
 /// An iterator over all words satisfying a given `WordConstraint`.
@@ -23,7 +25,9 @@ pub struct PatternIter<'a> {
 
 impl<'a> PatternIter<'a> {
     fn get_word(&self) -> Option<&'a Vec<char>> {
-        self.list.get(self.index).and_then(|&i| self.dict.words.get(i))
+        self.list
+            .get(self.index)
+            .and_then(|&i| self.dict.words.get(i))
     }
 }
 
@@ -57,7 +61,11 @@ impl Dict {
               U: Into<Vec<char>>
     {
         let mut dict = Dict {
-            words: all_words.into_iter().map(|w| w.into()).unique().collect(),
+            words: all_words
+                .into_iter()
+                .map(|w| w.into())
+                .unique()
+                .collect(),
             lists: HashMap::new(),
             max_n: 3, // TODO: Make this a parameter?
             empty_list: Vec::new(),
@@ -77,7 +85,8 @@ impl Dict {
     }
 
     fn replace_special(string_word: &str) -> String {
-        string_word.replace("Ä", "AE")
+        string_word
+            .replace("Ä", "AE")
             .replace("Ö", "OE")
             .replace("Ü", "UE")
             .replace("ß", "SS")
@@ -115,11 +124,12 @@ impl Dict {
             return list;
         }
         let mut pos = 0;
-        for i in pattern.iter()
-            .enumerate()
-            .filter(|&(_, ch)| ch == &BLOCK)
-            .map(|(i, _)| i)
-            .chain(iter::once(len)) {
+        for i in pattern
+                .iter()
+                .enumerate()
+                .filter(|&(_, ch)| ch == &BLOCK)
+                .map(|(i, _)| i)
+                .chain(iter::once(len)) {
             if i > pos {
                 let subword = &pattern[pos..i];
                 let n = cmp::min(self.max_n, subword.len());

@@ -45,7 +45,7 @@ fn write_html_to_file<P: AsRef<Path>>(filename: P,
 }
 
 /// Print the usage help message.
-fn print_usage(program: &str, opts: Options) {
+fn print_usage(program: &str, opts: &Options) {
     let brief = format!("Usage: {} [options]", program);
     print!("{}", opts.usage(&brief));
 }
@@ -56,16 +56,21 @@ fn evaluate(cw: &Crosswords, author: &Author) -> i32 {
     let words = cw.get_words();
     let word_count = words.len() as i32;
     let word_category_count =
-        words.into_iter().fold(0, |sum, word| sum + author.get_word_category(word).unwrap()) as i32;
+        words
+            .into_iter()
+            .fold(0, |sum, word| sum + author.get_word_category(word).unwrap()) as i32;
     empty_borders + word_count - 2 * word_category_count
 }
 
 /// Print the crosswords grid and the word count.
 fn print_cw(cw: &Crosswords, author: &Author) {
     println!("{} / {} words are favorites. Score: {}",
-             cw.get_words().iter().filter(|w| author.get_word_category(&w) == Some(0)).count(),
+             cw.get_words()
+                 .iter()
+                 .filter(|w| author.get_word_category(w) == Some(0))
+                 .count(),
              cw.get_words().len(),
-             evaluate(&cw, author));
+             evaluate(cw, author));
     println!("{}", cw);
 }
 
@@ -111,17 +116,20 @@ fn create_opts() -> Options {
 /// Return a list of dictionaries read from the given filenames.
 fn get_dicts<T: Iterator<Item = String>>(filenames: T, min_word_len: usize) -> Vec<Dict> {
     let mut existing_words = HashSet::new();
-    filenames.map(|filename| {
-            let file = File::open(filename).unwrap();
-            let dict = Dict::new(BufReader::new(file)
-                .lines()
-                .filter_map(Result::ok)
-                .filter_map(Dict::normalize_word)
-                .filter(|word| word.len() >= min_word_len && !existing_words.contains(word)));
-            existing_words.extend(dict.all_words().cloned());
-            dict
-        })
-        .collect()
+    let mut to_dict = move |filename| {
+        let dict = {
+            let words =
+                BufReader::new(File::open(filename).unwrap())
+                    .lines()
+                    .filter_map(Result::ok)
+                    .filter_map(Dict::normalize_word)
+                    .filter(|word| word.len() >= min_word_len && !existing_words.contains(word));
+            Dict::new(words)
+        };
+        existing_words.extend(dict.all_words().cloned());
+        dict
+    };
+    filenames.map(&mut to_dict).collect()
 }
 
 pub fn main() {
@@ -130,21 +138,24 @@ pub fn main() {
     let opts = create_opts();
     let matches = opts.parse(&args[1..]).unwrap();
     if matches.opt_present("h") {
-        print_usage(&program, opts);
+        print_usage(&program, &opts);
         return;
     }
     // TODO: Sanity checks for option values; proper error messages.
-    let size: Vec<usize> = matches.opt_str("s").map_or(vec![15, 10], |s| {
-        s.split('x')
-            .map(|s| s.parse().unwrap())
-            .collect()
-    });
+    let size: Vec<usize> = matches
+        .opt_str("s")
+        .map_or(vec![15, 10],
+                |s| s.split('x').map(|s| s.parse().unwrap()).collect());
     let (width, height): (usize, usize) = (size[0], size[1]);
     let min_crossing = matches.opt_str("c").map_or(2, |s| s.parse().unwrap());
     let min_crossing_percent = matches.opt_str("p").map_or(30, |s| s.parse().unwrap());
     let min_word_len = matches.opt_str("m").map_or(2, |s| s.parse().unwrap());
-    let max_attempts = matches.opt_str("max_attempts").map_or(usize::MAX, |s| s.parse().unwrap());
-    let samples = matches.opt_str("samples").map_or(1, |s| s.parse().unwrap());
+    let max_attempts = matches
+        .opt_str("max_attempts")
+        .map_or(usize::MAX, |s| s.parse().unwrap());
+    let samples = matches
+        .opt_str("samples")
+        .map_or(1, |s| s.parse().unwrap());
     let verbose = matches.opt_present("v");
     let dicts =
         get_dicts(match matches.opt_count("d") {
@@ -180,8 +191,10 @@ pub fn main() {
         let hint_text = match matches.opt_str("wikipedia") {
             None => HashMap::new(),
             Some(lang) => {
-                let word_iter = cw.get_words().iter().map(|cvec| cvec.iter().cloned().collect());
-                get_hints(word_iter, lang)
+                let word_iter = cw.get_words()
+                    .iter()
+                    .map(|cvec| cvec.iter().cloned().collect());
+                get_hints(word_iter, &lang)
             }
         };
         write_html_to_file("puzzle.html", &cw, false, &hint_text).unwrap();

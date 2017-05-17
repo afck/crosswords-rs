@@ -70,10 +70,12 @@ impl<'a> Iterator for PrintIter<'a> {
                 if self.cw.get_border(self.point, Dir::Right) {
                     count += 1
                 }
-                if self.cw.get_border(self.point + Point::new(1, 0), Dir::Down) {
+                if self.cw
+                       .get_border(self.point + Point::new(1, 0), Dir::Down) {
                     count += 1
                 }
-                if self.cw.get_border(self.point + Point::new(0, 1), Dir::Right) {
+                if self.cw
+                       .get_border(self.point + Point::new(0, 1), Dir::Right) {
                     count += 1
                 }
                 result = PrintItem::Cross(count > 1);

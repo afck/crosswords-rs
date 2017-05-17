@@ -40,8 +40,8 @@ impl RangeSet {
     }
 
     fn extend(&mut self, other: RangeSet) {
-        self.ranges.extend(other.ranges.into_iter());
-        self.backtrack_ranges.extend(other.backtrack_ranges.into_iter());
+        self.ranges.extend(other.ranges);
+        self.backtrack_ranges.extend(other.backtrack_ranges);
         self.est += other.est;
     }
 
@@ -177,10 +177,12 @@ impl<'a> Author<'a> {
         if self.cw.is_letter(point) {
             return false;
         }
-        self.cw.get_boundary_iter_for(point, Some(range)).all(|(p0, p1)| {
-            let r = Range::with_points(p0, p1);
-            !self.cw.is_range_free(r) || (r.dir == range.dir && range.intersects(&r))
-        })
+        self.cw
+            .get_boundary_iter_for(point, Some(range))
+            .all(|(p0, p1)| {
+                     let r = Range::with_points(p0, p1);
+                     !self.cw.is_range_free(r) || (r.dir == range.dir && range.intersects(&r))
+                 })
     }
 
     fn wouldnt_block(&self, range: Range, point: Point) -> bool {
@@ -194,10 +196,11 @@ impl<'a> Author<'a> {
         if self.min_crossing_percent == 100 {
             return true; // Then leaving unfilled length-1 ranges isn't allowed anyway.
         }
+        let dir = range.dir.other();
         let r = if self.cw.is_letter(point) {
-            self.cw.get_word_range_containing(point, range.dir.other())
+            self.cw.get_word_range_containing(point, dir)
         } else {
-            self.cw.get_free_range_containing(point, range.dir.other())
+            self.cw.get_free_range_containing(point, dir)
         };
         self.is_min_crossing_possible_without(r, range)
     }
@@ -274,7 +277,8 @@ impl<'a> Author<'a> {
         let mut result = None;
         for range in self.cw.word_ranges() {
             let odir = range.dir.other();
-            let candidate_points: Vec<Point> = range.points()
+            let candidate_points: Vec<Point> = range
+                .points()
                 .filter(|&p| self.cw.both_borders(p, odir))
                 .collect();
             let nc = candidate_points.len();
@@ -287,7 +291,8 @@ impl<'a> Author<'a> {
                         }
                     }
                 } else {
-                    let mut rsets = candidate_points.into_iter()
+                    let mut rsets = candidate_points
+                        .into_iter()
                         .filter_map(|p| self.get_all_ranges(p, odir, &result))
                         .collect_vec();
                     if rsets.len() >= mnc + 1 {
@@ -360,14 +365,15 @@ impl<'a> Author<'a> {
                     }
                 }
             }
-            rs.backtrack_ranges.extend(p_ranges.backtrack_ranges.into_iter());
+            rs.backtrack_ranges.extend(p_ranges.backtrack_ranges);
         }
         result_range_set!(result, rs);
         result
     }
 
     fn get_sorted_ranges(&self, range_set: HashSet<Range>) -> Vec<(Range, Vec<char>)> {
-        let mut ranges: Vec<(Range, Vec<char>)> = range_set.into_iter()
+        let mut ranges: Vec<(Range, Vec<char>)> = range_set
+            .into_iter()
             .map(|range| (range, self.cw.chars(range).collect()))
             .collect();
         ranges.sort_by(|r0, r1| self.range_score(&r1.0).cmp(&self.range_score(&r0.0)));
@@ -400,9 +406,13 @@ impl<'a> Author<'a> {
 
     fn range_meets(range: &Range, bt_ranges: &HashSet<Range>) -> bool {
         bt_ranges.is_empty() ||
-        bt_ranges.iter().any(|r| range.intersects(r) || range.is_adjacent_to(r))
+        bt_ranges
+            .iter()
+            .any(|r| range.intersects(r) || range.is_adjacent_to(r))
     }
 
+    // TODO: Remove when https://github.com/Manishearth/rust-clippy/issues/1586 is resolved.
+    #[cfg_attr(feature="cargo-clippy", allow(never_loop))]
     pub fn complete_cw(&mut self) -> Option<Crosswords> {
         let mut bt_ranges = HashSet::new();
         let mut attempts = 0;
@@ -418,12 +428,13 @@ impl<'a> Author<'a> {
         'main: loop {
             while let Some((range, word)) = iter.next() {
                 if self.cw.try_word(range.point, range.dir, &word) {
-                    self.stack.push(StackItem {
-                        bt_ranges: bt_ranges,
-                        range: range,
-                        iter: iter,
-                        attempts: attempts + 1,
-                    });
+                    self.stack
+                        .push(StackItem {
+                                  bt_ranges: bt_ranges,
+                                  range: range,
+                                  iter: iter,
+                                  attempts: attempts + 1,
+                              });
                     match self.get_range_set() {
                         Some(rs) => {
                             bt_ranges = rs.backtrack_ranges;
@@ -484,15 +495,19 @@ mod tests {
         let width = 5;
         let height = 4;
         let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[0..(width + height - 1)].as_bytes();
-        let horiz_words = letters.windows(width).map(String::from_utf8_lossy).map(str_to_cvec);
-        let vert_words = letters.windows(height).map(String::from_utf8_lossy).map(str_to_cvec);
+        let horiz_words = letters
+            .windows(width)
+            .map(String::from_utf8_lossy)
+            .map(str_to_cvec);
+        let vert_words = letters
+            .windows(height)
+            .map(String::from_utf8_lossy)
+            .map(str_to_cvec);
         let dicts = vec![Dict::new(horiz_words), Dict::new(vert_words)];
-        bencher.bench_n(10, |b| {
-            b.iter(|| {
-                assert!(Author::new(&Crosswords::new(width, height), &dicts)
-                    .complete_cw()
-                    .is_some())
-            })
-        });
+        bencher.iter(|| {
+                         assert!(Author::new(&Crosswords::new(width, height), &dicts)
+                                     .complete_cw()
+                                     .is_some())
+                     });
     }
 }

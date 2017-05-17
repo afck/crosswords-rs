@@ -157,7 +157,9 @@ impl Crosswords {
     /// the given point is outside the grid, it returns `None`.
     #[inline]
     pub fn get_char(&self, point: Point) -> Option<char> {
-        point.coord(self.width, self.height).and_then(|p| self.chars.get(p).cloned())
+        point
+            .coord(self.width, self.height)
+            .and_then(|p| self.chars.get(p).cloned())
     }
 
     /// An iterator over the characters in the given range.
@@ -387,7 +389,11 @@ impl Crosswords {
 
     /// Returns the number of borders inside the grid.
     pub fn count_borders(&self) -> usize {
-        self.right_border.iter().chain(self.down_border.iter()).filter(|&&b| b).count()
+        self.right_border
+            .iter()
+            .chain(&self.down_border)
+            .filter(|&&b| b)
+            .count()
     }
 
     /// The maximum number of borders inside a grid of this size, i. e. the number of borders if
@@ -421,17 +427,17 @@ impl Display for Crosswords {
         }
         for item in self.print_items() {
             try!(formatter.write_str(&match item {
-                    PrintItem::Cross(true) => '\u{00B7}',
-                    PrintItem::VertBorder(true) => '|',
-                    PrintItem::HorizBorder(true) => '\u{2014}',
-                    PrintItem::Cross(false) |
-                    PrintItem::VertBorder(false) |
-                    PrintItem::HorizBorder(false) => ' ',
-                    PrintItem::Block => '\u{2588}',
-                    PrintItem::CharHint(c, _) => c,
-                    PrintItem::LineBreak => '\n',
-                }
-                .to_string()
+                                              PrintItem::Cross(true) => '\u{00B7}',
+                                              PrintItem::VertBorder(true) => '|',
+                                              PrintItem::HorizBorder(true) => '\u{2014}',
+                                              PrintItem::Cross(false) |
+                                              PrintItem::VertBorder(false) |
+                                              PrintItem::HorizBorder(false) => ' ',
+                                              PrintItem::Block => '\u{2588}',
+                                              PrintItem::CharHint(c, _) => c,
+                                              PrintItem::LineBreak => '\n',
+                                          }
+                                          .to_string()
                                           [..]))
         }
         Ok(())

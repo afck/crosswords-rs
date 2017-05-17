@@ -48,7 +48,9 @@ impl WordConstraint {
         fn to_constraint((ngram, (pos, len)): (&[char], (usize, usize))) -> WordConstraint {
             WordConstraint::with_ngram(ngram, pos, len)
         };
-        word.windows(n).zip(iter::repeat(word.len()).enumerate()).map(to_constraint)
+        word.windows(n)
+            .zip(iter::repeat(word.len()).enumerate())
+            .map(to_constraint)
     }
 
     fn all_ngram_constraints(word: &[char], max_n: usize) -> AllNgramIter {

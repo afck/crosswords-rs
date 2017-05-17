@@ -18,8 +18,9 @@ pub struct BoundaryIter<'a> {
 
 impl<'a> BoundaryIter<'a> {
     pub fn new(point: Point, filled_range: Option<Range>, cw: &'a Crosswords) -> BoundaryIter<'a> {
-        (cw.get_char(point) == Some(BLOCK) && filled_range.iter().all(|r| !r.contains(point))) ||
-        panic!("BoundaryIter must start with an empty cell.");
+        if cw.get_char(point) != Some(BLOCK) || filled_range.iter().any(|r| r.contains(point)) {
+            panic!("BoundaryIter must start with an empty cell.");
+        }
         let dp = Dir::Right.point();
         let mut p1 = point;
         while cw.get_char(p1) == Some(BLOCK) && filled_range.iter().all(|r| !r.contains(p1)) {
@@ -47,8 +48,8 @@ impl<'a> BoundaryIter<'a> {
         let dp = p1 - p0;
         let odp = turn(dp);
         self.prev = Some(if !self.is_free(p0 + odp) {
-            (p0, p0 + odp)
-        } else if !self.is_free(p1 + odp) {
+                             (p0, p0 + odp)
+                         } else if !self.is_free(p1 + odp) {
             (p0 + odp, p1 + odp)
         } else {
             (p1 + odp, p1)
